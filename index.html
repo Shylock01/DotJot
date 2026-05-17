@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DotJot</title>
+  <link rel="icon" type="image/png" href="Graphics/favicon_padded.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <!-- Dashboard View -->
+  <div id="dashboard-view" class="view active">
+    <header class="dashboard-header">
+      <img src="Graphics/dotjot_logo_white.png" alt="DotJot Logo" class="dashboard-logo">
+    </header>
+
+    <div class="dashboard-content">
+      <!-- Most Recent Card -->
+      <section class="most-recent-section" id="most-recent-container">
+        <!-- Injected via JS -->
+      </section>
+
+      <!-- Grid of Notes -->
+      <section class="notes-grid" id="notes-grid">
+        <!-- Injected via JS -->
+      </section>
+    </div>
+
+    <!-- Global New Note FAB -->
+    <button class="fab global-fab elevation-2" id="new-note-btn" aria-label="Create New Note">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    </button>
+    
+    <!-- Bottom Gradient Overlay -->
+    <div class="dashboard-bottom-gradient"></div>
+  </div>
+
+  <!-- Note View (Canvas) -->
+  <div id="canvas-view" class="view">
+    <!-- Top Left Bookmark / Back Button -->
+    <button class="icon-btn back-btn elevation-2" id="back-to-dashboard-btn" aria-label="Back to Dashboard">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+    </button>
+    
+    <div class="note-header-ui">
+      <input type="text" id="note-title-input" class="note-title-input" placeholder="Note Title" />
+    </div>
+
+    <!-- The Dot Grid Canvas -->
+    <div id="dot-grid-container">
+      <!-- Objects (textareas, divs with SVGs) injected here -->
+    </div>
+
+    <!-- Top Center Page Navigator -->
+    <div class="page-navigator elevation-2">
+      <button class="icon-btn" id="prev-page-btn">&lt;</button>
+      <span id="page-indicator">1 / 1</span>
+      <button class="icon-btn" id="next-page-btn">&gt;</button>
+    </div>
+
+    <!-- Contextual Properties Toolbar -->
+    <div id="properties-toolbar" class="properties-toolbar elevation-3 hidden">
+      <label class="toggle-switch">
+        <input type="checkbox" id="snap-toggle" checked>
+        <span class="slider">Snap</span>
+      </label>
+      
+      <div class="slider-container">
+        <label for="stroke-width">Width</label>
+        <input type="range" id="stroke-width" min="1" max="10" value="2">
+      </div>
+
+      <button id="stroke-style-btn" class="toolbar-btn">Solid</button>
+      
+      <input type="color" id="color-picker" value="#1A1A1A" class="color-picker-input">
+    </div>
+
+    <!-- Tool Menu (Vertical Pill) -->
+    <div id="tool-menu" class="tool-menu elevation-3 hidden">
+      <button class="tool-btn active" data-tool="pointer" title="Pointer/Select">🎯</button>
+      <button class="tool-btn" data-tool="text" title="Text">T</button>
+      <button class="tool-btn" data-tool="rect" title="Rectangle">◻️</button>
+      <button class="tool-btn" data-tool="circle" title="Circle">⭕</button>
+      <button class="tool-btn" data-tool="line" title="Line">➖</button>
+      <button class="tool-btn" data-tool="draw" title="Freehand">✏️</button>
+    </div>
+
+    <!-- Bottom Right FAB Cluster -->
+    <div class="fab-cluster">
+      <button class="fab secondary-fab elevation-2" id="toggle-tools-btn" aria-label="Toggle Tools">
+        ✏️
+      </button>
+      <button class="fab primary-fab elevation-2" id="add-page-btn" aria-label="Add Page">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Modal Overlay -->
+  <div id="delete-modal" class="modal-overlay hidden">
+    <div class="modal-content elevation-3">
+      <p id="delete-modal-text">Delete note?</p>
+      <div class="modal-actions">
+        <button id="cancel-delete-btn" class="modal-btn cancel-btn">Cancel</button>
+        <button id="confirm-delete-btn" class="modal-btn confirm-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="app.js"></script>
+</body>
+</html>

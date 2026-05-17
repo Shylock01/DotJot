@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "DotJot",
+  "version": "0.1.1",
+  "description": "A minimalist dot-grid note-taking app for jotting, sketching, and organizing pages with a clean, modern interface.",
+  "permissions": [
+    "storage"
+  ],
+  "icons": {
+    "128": "Graphics/favicon_padded.png"
+  },
+  "action": {
+    "default_title": "Open DotJot",
+    "default_icon": {
+      "128": "Graphics/favicon_padded.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
+
