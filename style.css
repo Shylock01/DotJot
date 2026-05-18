@@ -20,8 +20,8 @@
   --card-radius: 32px;
   --fab-radius: 50%;
   --toolbar-radius: 24px;
-  --dot-spacing: 24px;
-  --dot-size: 2px;
+  --dot-spacing: 20px;
+  --dot-size: 1px;
 
   /* Elevations */
   --elev-1: none;
@@ -295,6 +295,15 @@ p,
   margin-bottom: 8px;
 }
 
+.note-card .note-edited-date {
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  color: var(--text-dark);
+  opacity: 0.6;
+  margin-top: -4px;
+  margin-bottom: 8px;
+}
+
 .note-card .note-preview {
   flex-grow: 1;
   overflow: hidden;
@@ -385,6 +394,8 @@ p,
   position: relative;
   overflow: hidden;
   flex-shrink: 0;
+  transform-origin: center center;
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
   /* width & height set dynamically by JS */
 }
 
@@ -412,14 +423,14 @@ p,
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
-/* Centered dot grid with 24px margins around page edges */
+/* Centered dot grid with 30px left/right and 38px top/bottom margins around page edges */
 .note-page::before {
   content: '';
   position: absolute;
-  top: 24px;
-  left: 24px;
-  right: 24px;
-  bottom: 24px;
+  top: 38px;
+  left: 30px;
+  right: 30px;
+  bottom: 38px;
   background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
   background-size: var(--dot-spacing) var(--dot-spacing);
   background-position: 0 0;
@@ -851,4 +862,12 @@ button:active {
   font-family: var(--font-body);
   pointer-events: none;
   z-index: 10;
+}
+
+/* Nav Divider between page navigation and zoom controls */
+.nav-divider {
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.25);
+  margin: 0 8px;
 }

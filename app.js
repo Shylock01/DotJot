@@ -1,7 +1,9 @@
 // === CONSTANTS & CONFIG ===
-const DOT_SPACING  = 24;
-const PAGE_WIDTH   = 360; // 312px grid span + 48px padding (14 dots wide)
-const PAGE_HEIGHT  = 696; // 648px grid span + 48px padding (28 dots tall)
+const DOT_SPACING   = 20;
+const GRID_MARGIN_X = 30;
+const GRID_MARGIN_Y = 38;
+const PAGE_WIDTH    = 360; // 300px grid span + 60px padding (16 dots wide)
+const PAGE_HEIGHT   = 696; // 620px grid span + 76px padding (32 dots tall)
 const PAGE_GAP     = 24;               // gap between pages
 const VIEWPORT_PAD = 24;               // side breathing room
 
@@ -99,7 +101,10 @@ const els = {
     nextPageBtn: document.getElementById('next-page-btn'),
     pageIndicator: document.getElementById('page-indicator'),
     addPageBtn: document.getElementById('add-page-btn'),
-    toggleToolsBtn: document.getElementById('toggle-tools-btn')
+    toggleToolsBtn: document.getElementById('toggle-tools-btn'),
+    zoomInBtn: document.getElementById('zoom-in-btn'),
+    zoomOutBtn: document.getElementById('zoom-out-btn'),
+    zoomResetBtn: document.getElementById('zoom-reset-btn')
   },
   tools: {
     menu: document.getElementById('tool-menu'),
@@ -192,6 +197,136 @@ function bindEvents() {
 
   // Recompute visible page count when window resizes
   window.addEventListener('resize', handleResize);
+
+  // Zoom Controls Event Listeners
+  if (els.canvas.zoomInBtn) {
+    els.canvas.zoomInBtn.addEventListener('click', () => {
+      state.editor.zoom = Math.min(2.0, (state.editor.zoom || 1.0) + 0.25);
+      applyZoomAndPan();
+    });
+  }
+  if (els.canvas.zoomOutBtn) {
+    els.canvas.zoomOutBtn.addEventListener('click', () => {
+      state.editor.zoom = Math.max(0.5, (state.editor.zoom || 1.0) - 0.25);
+      applyZoomAndPan();
+    });
+  }
+  if (els.canvas.zoomResetBtn) {
+    els.canvas.zoomResetBtn.addEventListener('click', () => {
+      state.editor.zoom = 1.0;
+      state.editor.panX = 0;
+      state.editor.panY = 0;
+      applyZoomAndPan();
+    });
+  }
+
+  // Desktop Trackpad Gestures & Mouse Wheels (Pinch-to-zoom + Canvas Scrolling)
+  els.views.canvas.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) {
+      e.preventDefault(); // Stop native browser scaling!
+      
+      const zoomSpeed = 0.01;
+      const zoomDelta = -e.deltaY * zoomSpeed;
+      const currentZoom = state.editor.zoom || 1.0;
+      state.editor.zoom = Math.max(0.5, Math.min(2.0, currentZoom + zoomDelta));
+      applyZoomAndPan();
+    } else {
+      e.preventDefault(); // Prevent default browser viewport scrolling
+      
+      const zoom = state.editor.zoom || 1.0;
+      // Subtract scroll values to translate 1:1 on-screen motion
+      state.editor.panX = (state.editor.panX || 0) - e.deltaX / zoom;
+      state.editor.panY = (state.editor.panY || 0) - e.deltaY / zoom;
+      applyZoomAndPan();
+    }
+  }, { passive: false });
+
+  // Mobile Pinch-to-Zoom (via two-finger touch events)
+  let startTouchDist = 0;
+  let startZoom = 1.0;
+
+  els.views.canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      state.editor.isDrawing = false; // Cancel any single-finger drawing
+      isPanning = false; // Cancel any active panning gesture
+      
+      startTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      startZoom = state.editor.zoom || 1.0;
+    }
+  }, { passive: true });
+
+  els.views.canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && startTouchDist > 0) {
+      e.preventDefault(); // Prevent native browser screen zoom
+      
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = currentDist / startTouchDist;
+      
+      state.editor.zoom = Math.max(0.5, Math.min(2.0, startZoom * ratio));
+      applyZoomAndPan();
+    }
+  }, { passive: false });
+
+  els.views.canvas.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+      startTouchDist = 0;
+    }
+  });
+
+  // Canvas Mobile Touch Drag Panning (Disabled on desktop mice, enabled for phone touches)
+  let isPanning = false;
+  let startPanClientX = 0;
+  let startPanClientY = 0;
+  let startPanX = 0;
+  let startPanY = 0;
+
+  els.views.canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return; // Only left click/primary touch
+    if (e.pointerType !== 'touch') return; // Only drag-pan using touchscreen touches
+
+    const isToolPointer = state.editor.activeTool === 'pointer';
+    const onObject = e.target.closest('.canvas-object');
+    const onResizeHandle = e.target.closest('.resize-handle');
+    const onUI = e.target.closest('.page-navigator') || 
+                 e.target.closest('.back-btn') || 
+                 e.target.closest('.tool-menu') || 
+                 e.target.closest('.fab-cluster') || 
+                 e.target.closest('.properties-toolbar');
+
+    if (onUI) return;
+
+    if (isToolPointer && !onObject && !onResizeHandle) {
+      isPanning = true;
+      startPanClientX = e.clientX;
+      startPanClientY = e.clientY;
+      startPanX = state.editor.panX || 0;
+      startPanY = state.editor.panY || 0;
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (isPanning) {
+      const dx = e.clientX - startPanClientX;
+      const dy = e.clientY - startPanClientY;
+      const zoom = state.editor.zoom || 1;
+      state.editor.panX = startPanX + dx / zoom;
+      state.editor.panY = startPanY + dy / zoom;
+      applyZoomAndPan();
+    }
+  });
+
+  window.addEventListener('pointerup', () => {
+    if (isPanning) {
+      isPanning = false;
+    }
+  });
 }
 
 // === VIEW LOGIC ===
@@ -204,6 +339,11 @@ function switchView(viewName) {
     renderDashboard();
     state.activeNoteId = null;
   } else if (viewName === 'canvas') {
+    if (state.editor.activeTool === 'pointer') {
+      els.views.canvas.classList.add('tool-pointer');
+    } else {
+      els.views.canvas.classList.remove('tool-pointer');
+    }
     renderCanvas();
   }
 }
@@ -279,6 +419,15 @@ function createNoteCard(note, isRecent) {
   preview.textContent = texts.join(' ') || 'Blank page...';
 
   card.appendChild(title);
+
+  if (!isRecent) {
+    const dateEl = document.createElement('div');
+    dateEl.className = 'note-edited-date';
+    const dateObj = new Date(note.lastModified);
+    dateEl.textContent = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    card.appendChild(dateEl);
+  }
+
   card.appendChild(preview);
   
   const actionsContainer = document.createElement('div');
@@ -475,6 +624,9 @@ async function createNewNote() {
   // Pre-render canvas
   state.activeNoteId = newNote.id;
   state.editor.currentPageIndex = 0;
+  state.editor.zoom = 1.0;
+  state.editor.panX = 0;
+  state.editor.panY = 0;
   els.canvas.titleInput.value = '';
   renderCanvas();
 
@@ -492,6 +644,9 @@ async function createNewNote() {
 function openNote(id) {
   state.activeNoteId = id;
   state.editor.currentPageIndex = 0;
+  state.editor.zoom = 1.0;
+  state.editor.panX = 0;
+  state.editor.panY = 0;
   els.canvas.titleInput.value = state.notes[id].title;
   switchView('canvas');
 }
@@ -541,6 +696,7 @@ function updateViewport(animate) {
   // Indicator: show rightmost visible page / total
   const rightmost = Math.min(state.editor.currentPageIndex + vc, note.pages.length);
   els.canvas.pageIndicator.textContent = `${rightmost} / ${note.pages.length}`;
+  applyZoomAndPan();
 }
 
 function handleResize() {
@@ -701,17 +857,42 @@ function selectTool(tool) {
   state.editor.activeTool = tool;
   state.editor.selectedObjectId = null; // deselect on tool change
   els.tools.btns.forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  
+  if (els.views.canvas) {
+    if (tool === 'pointer') {
+      els.views.canvas.classList.add('tool-pointer');
+    } else {
+      els.views.canvas.classList.remove('tool-pointer');
+    }
+  }
+  
   renderCanvas(); // re-render to remove selection
 }
 
 function snapX(val) {
   if (!state.editor.isSnapEnabled) return val;
-  return Math.max(24, Math.min(PAGE_WIDTH - 24, Math.round(val / DOT_SPACING) * DOT_SPACING));
+  const snapped = GRID_MARGIN_X + Math.round((val - GRID_MARGIN_X) / DOT_SPACING) * DOT_SPACING;
+  return Math.max(GRID_MARGIN_X, Math.min(PAGE_WIDTH - GRID_MARGIN_X, snapped));
 }
 
 function snapY(val) {
   if (!state.editor.isSnapEnabled) return val;
-  return Math.max(24, Math.min(PAGE_HEIGHT - 24, Math.round(val / DOT_SPACING) * DOT_SPACING));
+  const snapped = GRID_MARGIN_Y + Math.round((val - GRID_MARGIN_Y) / DOT_SPACING) * DOT_SPACING;
+  return Math.max(GRID_MARGIN_Y, Math.min(PAGE_HEIGHT - GRID_MARGIN_Y, snapped));
+}
+
+function applyZoomAndPan() {
+  const zoom = state.editor.zoom || 1;
+  const panX = state.editor.panX || 0;
+  const panY = state.editor.panY || 0;
+  
+  if (els.canvas.pagesViewport) {
+    els.canvas.pagesViewport.style.transform = `scale(${zoom}) translate(${panX}px, ${panY}px)`;
+  }
+  
+  if (els.canvas.zoomResetBtn) {
+    els.canvas.zoomResetBtn.textContent = Math.round(zoom * 100) + '%';
+  }
 }
 
 // === DRAWING / INTERACTION LOGIC ===
@@ -724,7 +905,11 @@ function getCoords(e) {
   const rect = pageEl.getBoundingClientRect();
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  return { x: clientX - rect.left, y: clientY - rect.top };
+  const zoom = state.editor.zoom || 1;
+  return { 
+    x: (clientX - rect.left) / zoom, 
+    y: (clientY - rect.top) / zoom 
+  };
 }
 
 function handlePointerDown(e) {
