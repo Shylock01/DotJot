@@ -243,6 +243,19 @@ function bindEvents() {
     }
   }, { passive: false });
 
+  // Prevent browser native pinch-to-zoom gesture takeover so pointer events don't trigger pointercancel
+  els.views.canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  els.views.canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
   // Unified Direct Multi-Touch Gestures (Direct screen single-finger panning and two-finger pinch zooming)
   const activePointers = new Map(); // pointerId -> { clientX, clientY }
   let startPinchDist = 0;
