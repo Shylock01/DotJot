@@ -1,9 +1,9 @@
 // === CONSTANTS & CONFIG ===
 const DOT_SPACING   = 20;
-const GRID_MARGIN_X = 30;
-const GRID_MARGIN_Y = 38;
-const PAGE_WIDTH    = 360; // 300px grid span + 60px padding (16 dots wide)
-const PAGE_HEIGHT   = 696; // 620px grid span + 76px padding (32 dots tall)
+const GRID_MARGIN_X = 15;
+const GRID_MARGIN_Y = 15;
+const PAGE_WIDTH    = 330; // 300px grid span + 30px padding (16 dots wide)
+const PAGE_HEIGHT   = 650; // 620px grid span + 30px padding (32 dots tall, 15px even margins)
 const PAGE_GAP     = 24;               // gap between pages
 const VIEWPORT_PAD = 24;               // side breathing room
 
@@ -243,15 +243,43 @@ function bindEvents() {
     }
   }, { passive: false });
 
-  // Prevent browser native pinch-to-zoom gesture takeover globally when viewing the canvas
+  // Prevent browser native scroll/zoom gestures inside the canvas view
   window.addEventListener('touchstart', (e) => {
-    if (state.currentView === 'canvas' && e.touches.length > 1) {
+    if (state.currentView !== 'canvas') return;
+    
+    // Always prevent multi-touch (2+ fingers) to ensure pinch-to-zoom is purely ours
+    if (e.touches.length > 1) {
+      e.preventDefault();
+      return;
+    }
+
+    // For single-touch, block native scroll/zoom only if we are interacting with the canvas drawing area itself
+    const onUI = e.target.closest('.page-navigator') || 
+                 e.target.closest('.back-btn') || 
+                 e.target.closest('.tool-menu') || 
+                 e.target.closest('.fab-cluster') || 
+                 e.target.closest('.properties-toolbar');
+    
+    if (!onUI) {
       e.preventDefault();
     }
   }, { passive: false });
 
   window.addEventListener('touchmove', (e) => {
-    if (state.currentView === 'canvas' && e.touches.length > 1) {
+    if (state.currentView !== 'canvas') return;
+
+    if (e.touches.length > 1) {
+      e.preventDefault();
+      return;
+    }
+
+    const onUI = e.target.closest('.page-navigator') || 
+                 e.target.closest('.back-btn') || 
+                 e.target.closest('.tool-menu') || 
+                 e.target.closest('.fab-cluster') || 
+                 e.target.closest('.properties-toolbar');
+    
+    if (!onUI) {
       e.preventDefault();
     }
   }, { passive: false });
@@ -713,11 +741,9 @@ function updateViewport(animate) {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
 
-  // Dynamically calculate page height fit scale based on window height
+  // Dynamically calculate page height fit scale leaving exactly 10px vertical margin at the top and bottom
   const canvasHeight = els.views.canvas.clientHeight || window.innerHeight;
-  // Leave 110px for vertical padding/margins, clamp scaling factors comfortably
-  const targetHeight = Math.max(300, canvasHeight - 110);
-  const fitScale = Math.min(1.4, targetHeight / PAGE_HEIGHT); // Cap scale at 1.4x max to prevent massive screens from blowing pages up too much
+  const fitScale = Math.min(2.0, (canvasHeight - 20) / PAGE_HEIGHT);
   state.editor.fitScale = fitScale;
 
   const maxCanFit = computeVisibleCount();
@@ -988,7 +1014,7 @@ function getCoords(e) {
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
   
-  // Normalize coordinates back to original unscaled page space (360x696) using combined scale factor
+  // Normalize coordinates back to original unscaled page space (330x650) using combined scale factor
   const fitScale = state.editor.fitScale || 1.0;
   const zoom = state.editor.zoom || 1.0;
   const totalScale = fitScale * zoom;
