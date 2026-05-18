@@ -387,12 +387,13 @@ p,
   overflow: hidden;
   align-items: center;
   justify-content: center;
+  touch-action: none;
 }
 
 /* Pages Viewport — clips to the set of visible pages, centered in canvas-view */
 #pages-viewport {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
   transform-origin: center center;
   transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
@@ -421,6 +422,7 @@ p,
   position: relative;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
+  touch-action: none;
 }
 
 /* Centered dot grid with 30px left/right and 38px top/bottom margins around page edges */

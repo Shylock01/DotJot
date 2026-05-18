@@ -207,7 +207,7 @@ function bindEvents() {
   }
   if (els.canvas.zoomOutBtn) {
     els.canvas.zoomOutBtn.addEventListener('click', () => {
-      state.editor.zoom = Math.max(0.5, (state.editor.zoom || 1.0) - 0.25);
+      state.editor.zoom = Math.max(1.0, (state.editor.zoom || 1.0) - 0.25);
       applyZoomAndPan();
     });
   }
@@ -228,7 +228,8 @@ function bindEvents() {
       const zoomSpeed = 0.01;
       const zoomDelta = -e.deltaY * zoomSpeed;
       const currentZoom = state.editor.zoom || 1.0;
-      state.editor.zoom = Math.max(0.5, Math.min(2.0, currentZoom + zoomDelta));
+      // Enforce zoom bounds: [1.0, 2.0]
+      state.editor.zoom = Math.max(1.0, Math.min(2.0, currentZoom + zoomDelta));
       applyZoomAndPan();
     } else {
       e.preventDefault(); // Prevent default browser viewport scrolling
@@ -241,45 +242,10 @@ function bindEvents() {
     }
   }, { passive: false });
 
-  // Mobile Pinch-to-Zoom (via two-finger touch events)
-  let startTouchDist = 0;
-  let startZoom = 1.0;
-
-  els.views.canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-      state.editor.isDrawing = false; // Cancel any single-finger drawing
-      isPanning = false; // Cancel any active panning gesture
-      
-      startTouchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      startZoom = state.editor.zoom || 1.0;
-    }
-  }, { passive: true });
-
-  els.views.canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && startTouchDist > 0) {
-      e.preventDefault(); // Prevent native browser screen zoom
-      
-      const currentDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const ratio = currentDist / startTouchDist;
-      
-      state.editor.zoom = Math.max(0.5, Math.min(2.0, startZoom * ratio));
-      applyZoomAndPan();
-    }
-  }, { passive: false });
-
-  els.views.canvas.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) {
-      startTouchDist = 0;
-    }
-  });
-
-  // Canvas Mobile Touch Drag Panning (Disabled on desktop mice, enabled for phone touches)
+  // Unified Direct Multi-Touch Gestures (Direct screen single-finger panning and two-finger pinch zooming)
+  const activePointers = new Map(); // pointerId -> { clientX, clientY }
+  let startPinchDist = 0;
+  let startPinchZoom = 1.0;
   let isPanning = false;
   let startPanClientX = 0;
   let startPanClientY = 0;
@@ -287,46 +253,98 @@ function bindEvents() {
   let startPanY = 0;
 
   els.views.canvas.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return; // Only left click/primary touch
-    if (e.pointerType !== 'touch') return; // Only drag-pan using touchscreen touches
+    // Only handle touch/pen gestures, or primary mouse click (button === 0)
+    if (e.button !== 0 && e.pointerType !== 'touch') return;
 
-    const isToolPointer = state.editor.activeTool === 'pointer';
-    const onObject = e.target.closest('.canvas-object');
-    const onResizeHandle = e.target.closest('.resize-handle');
-    const onUI = e.target.closest('.page-navigator') || 
-                 e.target.closest('.back-btn') || 
-                 e.target.closest('.tool-menu') || 
-                 e.target.closest('.fab-cluster') || 
-                 e.target.closest('.properties-toolbar');
+    // Track active pointer contacts
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
-    if (onUI) return;
+    // Multi-finger pinch-to-zoom setup
+    if (activePointers.size === 2) {
+      isPanning = false; // Cancel single-finger panning
+      state.editor.isDrawing = false; // Cancel any active drawing strokes
 
-    if (isToolPointer && !onObject && !onResizeHandle) {
-      isPanning = true;
-      startPanClientX = e.clientX;
-      startPanClientY = e.clientY;
-      startPanX = state.editor.panX || 0;
-      startPanY = state.editor.panY || 0;
-      e.preventDefault();
+      const pointers = Array.from(activePointers.values());
+      startPinchDist = Math.hypot(
+        pointers[0].clientX - pointers[1].clientX,
+        pointers[0].clientY - pointers[1].clientY
+      );
+      startPinchZoom = state.editor.zoom || 1.0;
+      return;
+    }
+
+    // Single-finger touch panning (Mobile)
+    if (e.pointerType === 'touch' && activePointers.size === 1) {
+      const isToolPointer = state.editor.activeTool === 'pointer';
+      const onObject = e.target.closest('.canvas-object');
+      const onResizeHandle = e.target.closest('.resize-handle');
+      const onUI = e.target.closest('.page-navigator') || 
+                   e.target.closest('.back-btn') || 
+                   e.target.closest('.tool-menu') || 
+                   e.target.closest('.fab-cluster') || 
+                   e.target.closest('.properties-toolbar');
+
+      if (onUI) return;
+
+      // Only pan if we are using the pointer tool, and not dragging shapes or resize handles
+      if (isToolPointer && !onObject && !onResizeHandle) {
+        isPanning = true;
+        startPanClientX = e.clientX;
+        startPanClientY = e.clientY;
+        startPanX = state.editor.panX || 0;
+        startPanY = state.editor.panY || 0;
+        
+        // Prevent default browser touch operations (like scrolling / swipe navigation)
+        e.preventDefault();
+      }
     }
   });
 
   window.addEventListener('pointermove', (e) => {
-    if (isPanning) {
+    if (!activePointers.has(e.pointerId)) return;
+
+    // Update tracked pointer coordinates
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+    // Multi-finger pinch-to-zoom execution
+    if (activePointers.size === 2 && startPinchDist > 0) {
+      const pointers = Array.from(activePointers.values());
+      const currentDist = Math.hypot(
+        pointers[0].clientX - pointers[1].clientX,
+        pointers[0].clientY - pointers[1].clientY
+      );
+      const ratio = currentDist / startPinchDist;
+      
+      // Enforce zoom bounds: [1.0, 2.0]
+      state.editor.zoom = Math.max(1.0, Math.min(2.0, startPinchZoom * ratio));
+      applyZoomAndPan();
+      return;
+    }
+
+    // Single-finger touch panning execution
+    if (isPanning && activePointers.size === 1) {
       const dx = e.clientX - startPanClientX;
       const dy = e.clientY - startPanClientY;
-      const zoom = state.editor.zoom || 1;
+      const zoom = state.editor.zoom || 1.0;
+      
       state.editor.panX = startPanX + dx / zoom;
       state.editor.panY = startPanY + dy / zoom;
       applyZoomAndPan();
     }
   });
 
-  window.addEventListener('pointerup', () => {
-    if (isPanning) {
+  const cleanPointer = (e) => {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) {
+      startPinchDist = 0;
+    }
+    if (isPanning && activePointers.size === 0) {
       isPanning = false;
     }
-  });
+  };
+
+  window.addEventListener('pointerup', cleanPointer);
+  window.addEventListener('pointercancel', cleanPointer);
 }
 
 // === VIEW LOGIC ===
@@ -888,6 +906,14 @@ function applyZoomAndPan() {
   
   if (els.canvas.pagesViewport) {
     els.canvas.pagesViewport.style.transform = `scale(${zoom}) translate(${panX}px, ${panY}px)`;
+    // Force reset native browser auto-scroll offsets to prevent dynamic shifting
+    els.canvas.pagesViewport.scrollTop = 0;
+    els.canvas.pagesViewport.scrollLeft = 0;
+  }
+  
+  if (els.views.canvas) {
+    els.views.canvas.scrollTop = 0;
+    els.views.canvas.scrollLeft = 0;
   }
   
   if (els.canvas.zoomResetBtn) {
