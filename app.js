@@ -22,6 +22,7 @@ let state = {
     strokeStyle: 'solid',
     color: '#1A1A1A',
     zoom: 1,
+    fitScale: 1.0,
     panX: 0,
     panY: 0,
     currentPageIndex: 0,  // leftmost visible page index
@@ -685,9 +686,12 @@ async function saveCurrentNote() {
 
 // === PAGE HELPERS ===
 
-// How many pages fit side-by-side given the current window width.
+// How many pages fit side-by-side given the current window width and dynamic page scale.
 function computeVisibleCount() {
-  return Math.max(1, Math.floor((window.innerWidth - 2 * VIEWPORT_PAD + PAGE_GAP) / (PAGE_WIDTH + PAGE_GAP)));
+  const fitScale = state.editor.fitScale || 1.0;
+  const scaledWidth = PAGE_WIDTH * fitScale;
+  const scaledGap = PAGE_GAP * fitScale;
+  return Math.max(1, Math.floor((window.innerWidth - 2 * VIEWPORT_PAD + scaledGap) / (scaledWidth + scaledGap)));
 }
 
 // Set viewport dimensions + track offset. Pass animate=true for the slide transition.
@@ -695,24 +699,35 @@ function updateViewport(animate) {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
 
-  const vc = computeVisibleCount();
+  // Dynamically calculate page height fit scale based on window height
+  const canvasHeight = els.views.canvas.clientHeight || window.innerHeight;
+  // Leave 160px for vertical padding/margins, clamp scaling factors comfortably
+  const targetHeight = Math.max(300, canvasHeight - 160);
+  const fitScale = Math.min(1.35, targetHeight / PAGE_HEIGHT); // Cap scale at 1.35x max to prevent massive screens from blowing pages up too much
+  state.editor.fitScale = fitScale;
+
+  const maxCanFit = computeVisibleCount();
+  // Cap the visible count by actual page count to center less pages
+  const vc = Math.min(note.pages.length, maxCanFit);
   const vpW = vc * PAGE_WIDTH + (vc - 1) * PAGE_GAP;
 
-  els.canvas.pagesViewport.style.width  = vpW + 'px';
-  els.canvas.pagesViewport.style.height = PAGE_HEIGHT + 'px';
+  // Set physically scaled dimensions of the pages viewport so browser layout & flex-centering matches correctly
+  els.canvas.pagesViewport.style.width  = (vpW * fitScale) + 'px';
+  els.canvas.pagesViewport.style.height = (PAGE_HEIGHT * fitScale) + 'px';
 
   // Clamp leftmost index so we never show empty space past the last page
-  const maxIdx = Math.max(0, note.pages.length - vc);
+  const maxIdx = Math.max(0, note.pages.length - maxCanFit);
   if (state.editor.currentPageIndex > maxIdx) state.editor.currentPageIndex = maxIdx;
 
   const offset = state.editor.currentPageIndex * (PAGE_WIDTH + PAGE_GAP);
   els.canvas.pagesTrack.style.transition = animate
     ? 'transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)'
     : 'none';
-  els.canvas.pagesTrack.style.transform = `translateX(-${offset}px)`;
+  els.canvas.pagesTrack.style.transformOrigin = '0 0';
+  els.canvas.pagesTrack.style.transform = `scale(${fitScale}) translateX(-${offset}px)`;
 
   // Indicator: show rightmost visible page / total
-  const rightmost = Math.min(state.editor.currentPageIndex + vc, note.pages.length);
+  const rightmost = Math.min(state.editor.currentPageIndex + maxCanFit, note.pages.length);
   els.canvas.pageIndicator.textContent = `${rightmost} / ${note.pages.length}`;
   applyZoomAndPan();
 }
@@ -735,6 +750,11 @@ function renderCanvas() {
     pageEl.dataset.pageIndex = idx;
 
     page.objects.forEach(obj => pageEl.appendChild(createDomFromObject(obj)));
+
+    if (state.editor.justAddedPageIndex === idx) {
+      pageEl.classList.add('newly-added-page');
+      state.editor.justAddedPageIndex = null; // Clear flag
+    }
 
     // Each page handles its own pointerdown so we know which page is being drawn on
     pageEl.addEventListener('pointerdown', (e) => {
@@ -856,12 +876,19 @@ function addPage() {
   if (!note) return;
   note.pages.push({ id: generateId(), objects: [] });
   const newIdx = note.pages.length - 1;
+  state.editor.justAddedPageIndex = newIdx; // Set animation flag
+
   const vc = computeVisibleCount();
   // Show the new page: scroll so it is the rightmost visible page
   state.editor.currentPageIndex = Math.max(0, newIdx - vc + 1);
   state.editor.activePageIndex  = newIdx;
   saveCurrentNote();
   renderCanvas();
+  
+  // Force horizontal slide transition to animate
+  setTimeout(() => {
+    updateViewport(true);
+  }, 0);
 }
 
 // === TOOL LOGIC ===
@@ -900,10 +927,25 @@ function snapY(val) {
 }
 
 function applyZoomAndPan() {
-  const zoom = state.editor.zoom || 1;
-  const panX = state.editor.panX || 0;
-  const panY = state.editor.panY || 0;
-  
+  let zoom = state.editor.zoom || 1.0;
+  // Enforce zoom bounds: [1.0, 2.0]
+  zoom = Math.max(1.0, Math.min(2.0, zoom));
+  state.editor.zoom = zoom;
+
+  // Calculate panning limits based on zoom level: (zoom - 1.0) * dimension / 2
+  const limitX = PAGE_WIDTH * (zoom - 1.0) / 2;
+  const limitY = PAGE_HEIGHT * (zoom - 1.0) / 2;
+
+  let panX = state.editor.panX || 0;
+  let panY = state.editor.panY || 0;
+
+  // Clamp panning values
+  panX = Math.max(-limitX, Math.min(limitX, panX));
+  panY = Math.max(-limitY, Math.min(limitY, panY));
+
+  state.editor.panX = panX;
+  state.editor.panY = panY;
+
   if (els.canvas.pagesViewport) {
     els.canvas.pagesViewport.style.transform = `scale(${zoom}) translate(${panX}px, ${panY}px)`;
     // Force reset native browser auto-scroll offsets to prevent dynamic shifting
@@ -931,10 +973,15 @@ function getCoords(e) {
   const rect = pageEl.getBoundingClientRect();
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  const zoom = state.editor.zoom || 1;
+  
+  // Normalize coordinates back to original unscaled page space (360x696) using combined scale factor
+  const fitScale = state.editor.fitScale || 1.0;
+  const zoom = state.editor.zoom || 1.0;
+  const totalScale = fitScale * zoom;
+  
   return { 
-    x: (clientX - rect.left) / zoom, 
-    y: (clientY - rect.top) / zoom 
+    x: (clientX - rect.left) / totalScale, 
+    y: (clientY - rect.top) / totalScale 
   };
 }
 
