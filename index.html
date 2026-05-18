@@ -37,6 +37,9 @@
     
     <!-- Bottom Gradient Overlay -->
     <div class="dashboard-bottom-gradient"></div>
+
+    <!-- Version Tag -->
+    <div class="version-tag">v0.1.2</div>
   </div>
 
   <!-- Note View (Canvas) -->
@@ -50,9 +53,11 @@
       <input type="text" id="note-title-input" class="note-title-input" placeholder="Note Title" />
     </div>
 
-    <!-- The Dot Grid Canvas -->
-    <div id="dot-grid-container">
-      <!-- Objects (textareas, divs with SVGs) injected here -->
+    <!-- Pages Viewport — centered in canvas-view, clips to visible pages -->
+    <div id="pages-viewport">
+      <div id="pages-track">
+        <!-- .note-page divs injected by JS -->
+      </div>
     </div>
 
     <!-- Top Center Page Navigator -->

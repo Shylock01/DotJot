@@ -1,5 +1,9 @@
 // === CONSTANTS & CONFIG ===
-const DOT_SPACING = 24;
+const DOT_SPACING  = 24;
+const PAGE_WIDTH   = 360; // 312px grid span + 48px padding (14 dots wide)
+const PAGE_HEIGHT  = 696; // 648px grid span + 48px padding (28 dots tall)
+const PAGE_GAP     = 24;               // gap between pages
+const VIEWPORT_PAD = 24;               // side breathing room
 
 // === STATE MANAGEMENT ===
 let state = {
@@ -18,7 +22,9 @@ let state = {
     zoom: 1,
     panX: 0,
     panY: 0,
-    currentPageIndex: 0,
+    currentPageIndex: 0,  // leftmost visible page index
+    activePageIndex: 0,   // page currently being drawn on
+    activePageEl: null,   // DOM element of the active page
     isDrawing: false,
     startX: 0,
     startY: 0,
@@ -87,7 +93,8 @@ const els = {
   canvas: {
     backBtn: document.getElementById('back-to-dashboard-btn'),
     titleInput: document.getElementById('note-title-input'),
-    container: document.getElementById('dot-grid-container'),
+    pagesViewport: document.getElementById('pages-viewport'),
+    pagesTrack: document.getElementById('pages-track'),
     prevPageBtn: document.getElementById('prev-page-btn'),
     nextPageBtn: document.getElementById('next-page-btn'),
     pageIndicator: document.getElementById('page-indicator'),
@@ -173,15 +180,18 @@ function bindEvents() {
     els.tools.strokeStyleBtn.textContent = state.editor.strokeStyle === 'solid' ? 'Solid' : 'Dashed';
   });
 
-  // Canvas Interactions
-  els.canvas.container.addEventListener('pointerdown', handlePointerDown);
-  els.canvas.container.addEventListener('pointermove', handlePointerMove);
+  // Canvas Interactions — pointerdown is bound per-page in renderCanvas()
+  // pointermove & pointerup stay on window so dragging outside a page still works
+  window.addEventListener('pointermove', handlePointerMove);
   window.addEventListener('pointerup', handlePointerUp);
-  
-  // Mobile Touch specific for zoom/pan
-  els.canvas.container.addEventListener('touchstart', handleTouchStart, {passive: false});
-  els.canvas.container.addEventListener('touchmove', handleTouchMove, {passive: false});
-  els.canvas.container.addEventListener('touchend', handleTouchEnd);
+
+  // Touch events for drawing (bound to pages-track for delegation)
+  els.canvas.pagesTrack.addEventListener('touchstart', handleTouchStart, { passive: false });
+  els.canvas.pagesTrack.addEventListener('touchmove', handleTouchMove, { passive: false });
+  els.canvas.pagesTrack.addEventListener('touchend', handleTouchEnd);
+
+  // Recompute visible page count when window resizes
+  window.addEventListener('resize', handleResize);
 }
 
 // === VIEW LOGIC ===
@@ -500,38 +510,76 @@ async function saveCurrentNote() {
   }
 }
 
-// === PAGE LOGIC ===
-function switchPage(dir) {
-  const note = state.notes[state.activeNoteId];
-  if (!note) return;
-  const newIdx = state.editor.currentPageIndex + dir;
-  if (newIdx >= 0 && newIdx < note.pages.length) {
-    state.editor.currentPageIndex = newIdx;
-    renderCanvas();
-  }
+// === PAGE HELPERS ===
+
+// How many pages fit side-by-side given the current window width.
+function computeVisibleCount() {
+  return Math.max(1, Math.floor((window.innerWidth - 2 * VIEWPORT_PAD + PAGE_GAP) / (PAGE_WIDTH + PAGE_GAP)));
 }
 
-function addPage() {
+// Set viewport dimensions + track offset. Pass animate=true for the slide transition.
+function updateViewport(animate) {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
-  note.pages.push({ id: generateId(), objects: [] });
-  state.editor.currentPageIndex = note.pages.length - 1;
-  saveCurrentNote();
-  renderCanvas();
+
+  const vc = computeVisibleCount();
+  const vpW = vc * PAGE_WIDTH + (vc - 1) * PAGE_GAP;
+
+  els.canvas.pagesViewport.style.width  = vpW + 'px';
+  els.canvas.pagesViewport.style.height = PAGE_HEIGHT + 'px';
+
+  // Clamp leftmost index so we never show empty space past the last page
+  const maxIdx = Math.max(0, note.pages.length - vc);
+  if (state.editor.currentPageIndex > maxIdx) state.editor.currentPageIndex = maxIdx;
+
+  const offset = state.editor.currentPageIndex * (PAGE_WIDTH + PAGE_GAP);
+  els.canvas.pagesTrack.style.transition = animate
+    ? 'transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)'
+    : 'none';
+  els.canvas.pagesTrack.style.transform = `translateX(-${offset}px)`;
+
+  // Indicator: show rightmost visible page / total
+  const rightmost = Math.min(state.editor.currentPageIndex + vc, note.pages.length);
+  els.canvas.pageIndicator.textContent = `${rightmost} / ${note.pages.length}`;
+}
+
+function handleResize() {
+  if (state.currentView === 'canvas') updateViewport(false);
 }
 
 // === CANVAS RENDER ===
+// Rebuilds all .note-page elements in the track from scratch.
 function renderCanvas() {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
-  
-  els.canvas.pageIndicator.textContent = `${state.editor.currentPageIndex + 1} / ${note.pages.length}`;
-  els.canvas.container.innerHTML = '';
-  
-  const page = note.pages[state.editor.currentPageIndex];
-  page.objects.forEach(obj => {
-    els.canvas.container.appendChild(createDomFromObject(obj));
+
+  els.canvas.pagesTrack.innerHTML = '';
+
+  note.pages.forEach((page, idx) => {
+    const pageEl = document.createElement('div');
+    pageEl.className = 'note-page';
+    pageEl.dataset.pageIndex = idx;
+
+    page.objects.forEach(obj => pageEl.appendChild(createDomFromObject(obj)));
+
+    // Each page handles its own pointerdown so we know which page is being drawn on
+    pageEl.addEventListener('pointerdown', (e) => {
+      state.editor.activePageIndex = idx;
+      state.editor.activePageEl    = pageEl;
+      handlePointerDown(e);
+    });
+
+    els.canvas.pagesTrack.appendChild(pageEl);
   });
+
+  // Restore activePageEl reference after DOM rebuild
+  const activeEl = els.canvas.pagesTrack.querySelector(
+    `.note-page[data-page-index="${state.editor.activePageIndex}"]`
+  );
+  state.editor.activePageEl = activeEl ||
+    els.canvas.pagesTrack.querySelector('.note-page');
+
+  updateViewport(false);
 }
 
 function createDomFromObject(obj) {
@@ -610,6 +658,38 @@ function addResizeHandles(el) {
   });
 }
 
+// === PAGE LOGIC ===
+function switchPage(dir) {
+  const note = state.notes[state.activeNoteId];
+  if (!note) return;
+  const vc = computeVisibleCount();
+  const maxIdx = Math.max(0, note.pages.length - vc);
+  const newIdx = Math.max(0, Math.min(maxIdx, state.editor.currentPageIndex + dir));
+  if (newIdx !== state.editor.currentPageIndex) {
+    state.editor.currentPageIndex = newIdx;
+    state.editor.activePageIndex  = newIdx;
+    updateViewport(true);
+    // Update activePageEl after transition (DOM already exists)
+    const el = els.canvas.pagesTrack.querySelector(
+      `.note-page[data-page-index="${newIdx}"]`
+    );
+    state.editor.activePageEl = el || state.editor.activePageEl;
+  }
+}
+
+function addPage() {
+  const note = state.notes[state.activeNoteId];
+  if (!note) return;
+  note.pages.push({ id: generateId(), objects: [] });
+  const newIdx = note.pages.length - 1;
+  const vc = computeVisibleCount();
+  // Show the new page: scroll so it is the rightmost visible page
+  state.editor.currentPageIndex = Math.max(0, newIdx - vc + 1);
+  state.editor.activePageIndex  = newIdx;
+  saveCurrentNote();
+  renderCanvas();
+}
+
 // === TOOL LOGIC ===
 function toggleToolMenu() {
   els.tools.menu.classList.toggle('hidden');
@@ -624,8 +704,14 @@ function selectTool(tool) {
   renderCanvas(); // re-render to remove selection
 }
 
-function snap(val) {
-  return state.editor.isSnapEnabled ? Math.round(val / DOT_SPACING) * DOT_SPACING : val;
+function snapX(val) {
+  if (!state.editor.isSnapEnabled) return val;
+  return Math.max(24, Math.min(PAGE_WIDTH - 24, Math.round(val / DOT_SPACING) * DOT_SPACING));
+}
+
+function snapY(val) {
+  if (!state.editor.isSnapEnabled) return val;
+  return Math.max(24, Math.min(PAGE_HEIGHT - 24, Math.round(val / DOT_SPACING) * DOT_SPACING));
 }
 
 // === DRAWING / INTERACTION LOGIC ===
@@ -633,13 +719,12 @@ let currentObj = null;
 let currentEl = null;
 
 function getCoords(e) {
-  const rect = els.canvas.container.getBoundingClientRect();
+  const pageEl = state.editor.activePageEl;
+  if (!pageEl) return { x: 0, y: 0 };
+  const rect = pageEl.getBoundingClientRect();
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  return {
-    x: clientX - rect.left,
-    y: clientY - rect.top
-  };
+  return { x: clientX - rect.left, y: clientY - rect.top };
 }
 
 function handlePointerDown(e) {
@@ -656,8 +741,8 @@ function handlePointerDown(e) {
   let startY = coords.y;
   
   if (state.editor.isSnapEnabled && state.editor.activeTool !== 'draw' && state.editor.activeTool !== 'text') {
-    startX = snap(startX);
-    startY = snap(startY);
+    startX = snapX(startX);
+    startY = snapY(startY);
   }
 
   state.editor.isDrawing = true;
@@ -665,15 +750,15 @@ function handlePointerDown(e) {
   state.editor.startY = startY;
 
   const note = state.notes[state.activeNoteId];
-  const page = note.pages[state.editor.currentPageIndex];
+  const page = note.pages[state.editor.activePageIndex];
 
   if (state.editor.activeTool === 'text') {
     // Spawns text area immediately
     const obj = {
       id: generateId(),
       type: 'text',
-      x: snap(startX),
-      y: snap(startY),
+      x: snapX(startX),
+      y: snapY(startY),
       width: 100,
       height: 40,
       color: state.editor.color,
@@ -681,7 +766,7 @@ function handlePointerDown(e) {
     };
     page.objects.push(obj);
     renderCanvas();
-    const el = document.querySelector(`[data-id="${obj.id}"]`);
+    const el = state.editor.activePageEl?.querySelector(`[data-id="${obj.id}"]`);
     if (el) el.focus();
     state.editor.isDrawing = false;
     saveCurrentNote();
@@ -704,7 +789,8 @@ function handlePointerDown(e) {
   
   page.objects.push(currentObj);
   currentEl = createDomFromObject(currentObj);
-  els.canvas.container.appendChild(currentEl);
+  // Append to the active page element, not the global container
+  if (state.editor.activePageEl) state.editor.activePageEl.appendChild(currentEl);
 }
 
 function handlePointerMove(e) {
@@ -729,8 +815,8 @@ function handlePointerMove(e) {
   }
 
   if (state.editor.isSnapEnabled) {
-    currentX = snap(currentX);
-    currentY = snap(currentY);
+    currentX = snapX(currentX);
+    currentY = snapY(currentY);
   }
 
   const width = currentX - state.editor.startX;
@@ -776,7 +862,7 @@ function handlePointerUp(e) {
       if (currentObj.width === 0 && currentObj.height === 0 && currentObj.type !== 'text') {
         // Remove empty object
         const note = state.notes[state.activeNoteId];
-        const page = note.pages[state.editor.currentPageIndex];
+        const page = note.pages[state.editor.activePageIndex];
         page.objects.pop();
         if (currentEl && currentEl.parentNode) currentEl.parentNode.removeChild(currentEl);
       } else {
@@ -789,40 +875,23 @@ function handlePointerUp(e) {
   }
 }
 
-// === MULTI-TOUCH ZOOM/PAN ===
-let initialDist = 0;
-let initialZoom = 1;
-
+// === MULTI-TOUCH ===
+// Pinch-to-zoom is removed in the fixed-page layout.
+// These stubs remain so old bindings don't throw.
 function handleTouchStart(e) {
   if (e.touches.length === 2) {
-    e.preventDefault();
-    initialDist = Math.hypot(
-      e.touches[0].pageX - e.touches[1].pageX,
-      e.touches[0].pageY - e.touches[1].pageY
-    );
-    initialZoom = state.editor.zoom;
     state.editor.isDrawing = false; // cancel drawing on two fingers
   }
 }
 
 function handleTouchMove(e) {
-  if (e.touches.length === 2) {
-    e.preventDefault();
-    const currentDist = Math.hypot(
-      e.touches[0].pageX - e.touches[1].pageX,
-      e.touches[0].pageY - e.touches[1].pageY
-    );
-    const zoomDelta = currentDist / initialDist;
-    state.editor.zoom = Math.max(0.5, Math.min(3, initialZoom * zoomDelta));
-    els.canvas.container.style.transform = `scale(${state.editor.zoom})`;
-  } else if (e.touches.length === 1 && state.editor.activeTool !== 'pointer' && state.editor.isDrawing) {
-    // Only prevent default if drawing to stop scrolling
+  if (e.touches.length === 1 && state.editor.isDrawing) {
     e.preventDefault();
   }
 }
 
 function handleTouchEnd(e) {
-  // handled by pointerup mostly, but reset touch vars if needed
+  // handled by pointerup
 }
 
 // Boot

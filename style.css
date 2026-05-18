@@ -1,12 +1,13 @@
 :root {
   /* Colors */
-  --bg-main: #4E5A79;
-  --surface: #B0B8C8;
+  --bg-main: #1B6488;        /* 1 — deep teal: dashboard bg, toolbars */
+  --surface: #D7703D;        /* 4 — burnt orange: note cards */
+  --note-bg: #F8E6DD;        /* 3 — warm cream: canvas page & modals */
   --accent-primary: #FF3D00;
   --accent-secondary: #FFC107;
   --text-light: #FFFFFF;
   --text-dark: #1A1A1A;
-  --dot-color: #8B95A8;
+  --dot-color: #33180A;      /* 2 — dark brown: dot grid on note page */
   --selection-color: #0066FF;
 
   /* Typography */
@@ -46,34 +47,40 @@ body {
   font-family: var(--font-body);
   background-color: var(--bg-main);
   color: var(--text-dark);
-  overflow: hidden; /* Prevent scrolling on body, manage per view */
+  overflow: hidden;
+  /* Prevent scrolling on body, manage per view */
 }
 
 @keyframes bgDrift {
   0% {
     background-position: 0px 0px;
   }
+
   100% {
     background-position: 40px 40px;
   }
 }
 
 /* Typography Classes */
-h1, .h1 {
+h1,
+.h1 {
   font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: bold;
   color: var(--text-light);
 }
 
-h2, .h2 {
+h2,
+.h2 {
   font-family: var(--font-display);
   font-size: 1.5rem;
-  font-weight: 800; /* Extra bold */
+  font-weight: 800;
+  /* Extra bold */
   color: var(--text-dark);
 }
 
-p, .body-text {
+p,
+.body-text {
   font-family: var(--font-body);
   font-size: 1rem;
   font-weight: normal;
@@ -82,9 +89,17 @@ p, .body-text {
 }
 
 /* Elevations */
-.elevation-1 { box-shadow: var(--elev-1); }
-.elevation-2 { box-shadow: var(--elev-2); }
-.elevation-3 { box-shadow: var(--elev-3); }
+.elevation-1 {
+  box-shadow: var(--elev-1);
+}
+
+.elevation-2 {
+  box-shadow: var(--elev-2);
+}
+
+.elevation-3 {
+  box-shadow: var(--elev-3);
+}
 
 /* Views */
 .view {
@@ -131,7 +146,8 @@ p, .body-text {
 /* Dashboard View */
 #dashboard-view {
   background-color: var(--bg-main);
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 5px, transparent 5px);
+  /* Dots are a slightly lighter tint of the teal base */
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 5px, transparent 5px);
   background-size: 40px 40px;
   animation: bgDrift 15s linear infinite;
   padding: var(--global-padding);
@@ -140,7 +156,7 @@ p, .body-text {
 }
 
 #dashboard-view.selection-mode {
-  background-color: #353D52;
+  background-color: #134d6a; /* darker teal for selection mode */
 }
 
 .dashboard-header {
@@ -160,16 +176,31 @@ p, .body-text {
   display: flex;
   flex-direction: column;
   gap: var(--grid-gap);
-  padding-bottom: 100px; /* Space for FAB */
+  padding-bottom: 100px;
+  /* Space for FAB */
 }
 
 /* Cards */
 @keyframes wiggle {
-  0%   { transform: rotate(0deg); }
-  25%  { transform: rotate(-0.8deg); }
-  50%  { transform: rotate(0deg); }
-  75%  { transform: rotate(0.8deg); }
-  100% { transform: rotate(0deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  25% {
+    transform: rotate(-0.8deg);
+  }
+
+  50% {
+    transform: rotate(0deg);
+  }
+
+  75% {
+    transform: rotate(0.8deg);
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
 }
 
 .note-card {
@@ -183,8 +214,8 @@ p, .body-text {
   flex-direction: column;
   position: relative;
   box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.25),
-              inset 0px 0px 0px 0px transparent,
-              0 4px 6px rgba(0, 0, 0, 0.2);
+    inset 0px 0px 0px 0px transparent,
+    0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 .note-card.wiggling {
@@ -200,7 +231,10 @@ p, .body-text {
 .note-card.selected::after {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-color: rgba(255, 61, 0, 0.3);
   border-radius: var(--card-radius);
   z-index: 5;
@@ -210,7 +244,8 @@ p, .body-text {
 .note-card.selected::before {
   content: '🗑️';
   position: absolute;
-  top: 50%; left: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
   font-size: 3rem;
   z-index: 6;
@@ -309,6 +344,7 @@ p, .body-text {
     flex-direction: column;
     align-items: stretch;
   }
+
   .most-recent-card {
     width: 100%;
   }
@@ -335,25 +371,60 @@ p, .body-text {
   }
 }
 
-/* Canvas View */
+/* Canvas View — teal background stage, pages float centered inside */
 #canvas-view {
-  background-color: var(--surface);
-  /* Dot Grid Background */
-  background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
-  background-size: var(--dot-spacing) var(--dot-spacing);
-  background-position: calc(var(--dot-spacing)/2) calc(var(--dot-spacing)/2);
+  background-color: var(--bg-main);
   position: relative;
-  overflow: hidden; /* we manage dragging via JS */
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
 }
 
-#dot-grid-container {
+/* Pages Viewport — clips to the set of visible pages, centered in canvas-view */
+#pages-viewport {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* width & height set dynamically by JS */
+}
+
+/* Pages Track — horizontal strip holding all .note-page elements */
+#pages-track {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  transform-origin: 0 0;
-  /* allows drawing outside the initial viewport if panning is implemented */
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  will-change: transform;
+  /* transition injected by JS when animating */
+}
+
+/* Individual Page Card */
+.note-page {
+  width: 360px;  /* 312px grid span + 48px padding */
+  height: 696px; /* 648px grid span + 48px padding */
+  flex-shrink: 0;
+  border-radius: 20px;
+  background-color: var(--note-bg);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Centered dot grid with 24px margins around page edges */
+.note-page::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+  background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
+  background-size: var(--dot-spacing) var(--dot-spacing);
+  background-position: 0 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Buttons & FABs */
@@ -405,9 +476,18 @@ button:active {
 }
 
 @keyframes elasticExpand {
-  0% { transform: scale(1); }
-  30% { transform: scale(0.7); }
-  100% { transform: scale(1.5); opacity: 0; }
+  0% {
+    transform: scale(1);
+  }
+
+  30% {
+    transform: scale(0.7);
+  }
+
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
 }
 
 .fab-cluster {
@@ -479,6 +559,7 @@ button:active {
   outline: none;
   width: 200px;
 }
+
 .note-title-input::placeholder {
   color: rgba(26, 26, 26, 0.5);
 }
@@ -513,7 +594,8 @@ button:active {
 /* Toolbars */
 .tool-menu {
   position: absolute;
-  bottom: calc(var(--global-padding) + 80px); /* above FABs */
+  bottom: calc(var(--global-padding) + 80px);
+  /* above FABs */
   right: var(--global-padding);
   background-color: var(--bg-main);
   border-radius: var(--toolbar-radius);
@@ -568,7 +650,7 @@ button:active {
   color: var(--text-light);
   padding: 4px 8px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .color-picker-input {
@@ -581,9 +663,11 @@ button:active {
   padding: 0;
   background: transparent;
 }
+
 .color-picker-input::-webkit-color-swatch-wrapper {
   padding: 0;
 }
+
 .color-picker-input::-webkit-color-swatch {
   border: 2px solid white;
   border-radius: 50%;
@@ -599,7 +683,8 @@ button:active {
 /* Canvas Objects */
 .canvas-object {
   position: absolute;
-  pointer-events: auto; /* allows interaction */
+  pointer-events: auto;
+  /* allows interaction */
 }
 
 /* Bounding Box for Selection */
@@ -622,14 +707,33 @@ button:active {
   display: block;
 }
 
-.resize-handle.nw { top: -6px; left: -6px; cursor: nwse-resize; }
-.resize-handle.ne { top: -6px; right: -6px; cursor: nesw-resize; }
-.resize-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
-.resize-handle.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.resize-handle.nw {
+  top: -6px;
+  left: -6px;
+  cursor: nwse-resize;
+}
+
+.resize-handle.ne {
+  top: -6px;
+  right: -6px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
 
 .canvas-text-input {
   background: transparent;
-  border: 1px dashed rgba(0,0,0,0.2);
+  border: 1px dashed rgba(0, 0, 0, 0.2);
   outline: none;
   font-family: var(--font-body);
   font-size: 1rem;
@@ -641,9 +745,11 @@ button:active {
   padding: 2px;
   white-space: pre-wrap;
 }
+
 .canvas-text-input:focus {
   border: 1px solid var(--selection-color);
 }
+
 .canvas-text-input.readonly {
   border: none;
   pointer-events: none;
@@ -657,17 +763,20 @@ button:active {
   font-size: 0.8rem;
   cursor: pointer;
 }
+
 .toggle-switch input {
   display: none;
 }
+
 .toggle-switch .slider {
   position: relative;
   display: inline-block;
-  background: rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.2);
   padding: 4px 8px;
   border-radius: 12px;
 }
-.toggle-switch input:checked + .slider {
+
+.toggle-switch input:checked+.slider {
   background: var(--accent-secondary);
   color: var(--text-dark);
   font-weight: bold;
@@ -680,7 +789,7 @@ button:active {
   left: 0;
   width: 100%;
   height: 200px;
-  background: linear-gradient(to bottom, transparent, #1A2238); /* darker blue */
+  background: linear-gradient(to bottom, transparent, #0d3a4f); /* dark teal */
   pointer-events: none;
   z-index: 50; /* Above notes, below FABs */
 }
@@ -688,7 +797,10 @@ button:active {
 /* Modal Overlay */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
@@ -701,7 +813,7 @@ button:active {
 }
 
 .modal-content {
-  background-color: var(--surface);
+  background-color: var(--note-bg); /* cream — neutral read for dialogs */
   padding: 24px;
   border-radius: var(--card-radius);
   max-width: 400px;
@@ -726,4 +838,17 @@ button:active {
 
 .modal-btn.confirm-btn {
   background-color: var(--accent-primary);
+}
+
+/* Version Tag */
+.version-tag {
+  position: absolute;
+  bottom: 16px;
+  left: 24px;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  opacity: 0.4;
+  font-family: var(--font-body);
+  pointer-events: none;
+  z-index: 10;
 }
