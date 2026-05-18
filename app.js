@@ -243,15 +243,15 @@ function bindEvents() {
     }
   }, { passive: false });
 
-  // Prevent browser native pinch-to-zoom gesture takeover so pointer events don't trigger pointercancel
-  els.views.canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length > 1) {
+  // Prevent browser native pinch-to-zoom gesture takeover globally when viewing the canvas
+  window.addEventListener('touchstart', (e) => {
+    if (state.currentView === 'canvas' && e.touches.length > 1) {
       e.preventDefault();
     }
   }, { passive: false });
 
-  els.views.canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length > 1) {
+  window.addEventListener('touchmove', (e) => {
+    if (state.currentView === 'canvas' && e.touches.length > 1) {
       e.preventDefault();
     }
   }, { passive: false });
@@ -266,7 +266,8 @@ function bindEvents() {
   let startPanX = 0;
   let startPanY = 0;
 
-  els.views.canvas.addEventListener('pointerdown', (e) => {
+  window.addEventListener('pointerdown', (e) => {
+    if (state.currentView !== 'canvas') return;
     // Only handle touch/pen gestures, or primary mouse click (button === 0)
     if (e.button !== 0 && e.pointerType !== 'touch') return;
 
@@ -714,9 +715,9 @@ function updateViewport(animate) {
 
   // Dynamically calculate page height fit scale based on window height
   const canvasHeight = els.views.canvas.clientHeight || window.innerHeight;
-  // Leave 160px for vertical padding/margins, clamp scaling factors comfortably
-  const targetHeight = Math.max(300, canvasHeight - 160);
-  const fitScale = Math.min(1.35, targetHeight / PAGE_HEIGHT); // Cap scale at 1.35x max to prevent massive screens from blowing pages up too much
+  // Leave 110px for vertical padding/margins, clamp scaling factors comfortably
+  const targetHeight = Math.max(300, canvasHeight - 110);
+  const fitScale = Math.min(1.4, targetHeight / PAGE_HEIGHT); // Cap scale at 1.4x max to prevent massive screens from blowing pages up too much
   state.editor.fitScale = fitScale;
 
   const maxCanFit = computeVisibleCount();

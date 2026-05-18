@@ -399,6 +399,7 @@ p,
   transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1),
               width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   /* width & height set dynamically by JS */
+  touch-action: none;
 }
 
 /* Pages Track — horizontal strip holding all .note-page elements */
@@ -411,6 +412,7 @@ p,
   gap: 24px;
   will-change: transform;
   /* transition injected by JS when animating */
+  touch-action: none;
 }
 
 /* Individual Page Card */
