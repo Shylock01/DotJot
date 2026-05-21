@@ -735,11 +735,12 @@ button:active {
 }/* Toolbars */
 .tool-menu {
   position: absolute;
-  /* Centered exactly over the secondary FAB (edit button) horizontally and vertically */
-  bottom: calc(var(--global-padding) + 104px);
+  /* Positioned directly above the edit button, centered horizontally with it */
+  bottom: calc(var(--global-padding) + 136px); /* Edit button top is global-padding + 128px. Adding an 8px gap. */
   right: calc(var(--global-padding) + 32px);
   width: 53px; /* 5px wider than desktop edit button (48px) */
-  transform: translate(50%, 50%); /* Centers exactly over the edit button */
+  transform: translateX(50%); /* Centers horizontally over the edit button */
+  transform-origin: center bottom; /* Sprout/rise outwards from the bottom edge */
   background-color: var(--bg-main);
   border-radius: var(--toolbar-radius);
   display: flex;
@@ -747,7 +748,7 @@ button:active {
   align-items: center;
   padding: 8px;
   gap: 8px;
-  z-index: 99; /* Edit button in cluster is z-index 100, so it sits on top! */
+  z-index: 99;
   box-shadow: var(--elev-3);
   opacity: 1;
   pointer-events: auto;
@@ -757,14 +758,8 @@ button:active {
 .tool-menu.hidden {
   opacity: 0;
   pointer-events: none;
-  /* Shrink down to the center point of the edit button */
-  transform: translate(50%, 50%) scale(0.1);
-}
-
-.menu-spacer {
-  height: 48px; /* Matches the height of the desktop edit button */
-  width: 100%;
-  pointer-events: none;
+  /* Shrink directly down to the top of the edit button */
+  transform: translateX(50%) scale(0.1);
 }
 
 .tool-btn {
@@ -1104,15 +1099,11 @@ button:active {
 
   /* Vertical Tool Menu */
   .tool-menu {
-    bottom: calc(var(--global-padding) + 78px);
+    bottom: calc(var(--global-padding) + 102px); /* Mobile edit button top is global-padding + 96px. Adding a 6px gap. */
     right: calc(var(--global-padding) + 24px);
     width: 41px;
     padding: 4px;
     gap: 4px;
-  }
-
-  .menu-spacer {
-    height: 36px;
   }
 
   .tool-btn {
