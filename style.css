@@ -550,39 +550,156 @@ button:active {
   justify-content: center;
 }
 
-.back-btn {
+/* Note Banner Tab */
+.note-banner-tab {
   position: absolute;
-  top: var(--global-padding);
-  left: var(--global-padding);
-  z-index: 100;
-  background-color: var(--accent-primary) !important;
+  top: 0;
+  left: 30px; /* Shifted away from left side by 30px */
+  z-index: 150;
+  opacity: 0.7;
+  transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  display: flex;
+  align-items: flex-start;
 }
 
-.back-btn.animating {
-  animation: elasticExpand 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+/* Hover / Solidify State */
+.note-banner-tab:hover {
+  opacity: 1;
+}
+
+/* Expanded & Focus-Within States */
+.note-banner-tab.expanded,
+.note-banner-tab:focus-within {
+  opacity: 1;
+}
+
+/* Vertical Pennant Ribbon */
+.banner-ribbon {
+  width: 44px;
+  height: 60px;
+  background-color: var(--accent-primary);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 8px), 0 100%); /* swallowtail cut with two points on each side */
+  transition: height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.note-banner-tab:hover .banner-ribbon {
+  transform: scale(1.05);
+}
+
+.note-banner-tab.expanded .banner-ribbon,
+.note-banner-tab:focus-within .banner-ribbon {
+  height: 84px;
+  transform: scale(1.05);
+}
+
+.banner-back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  bottom: 20px; /* Raised to clear the swallowtail cut */
+  left: 50%;
+  transform: translateX(-50%) scale(0.6);
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  z-index: 3;
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.banner-back-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.banner-back-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.banner-back-btn:active svg {
+  transform: scale(0.85);
+}
+
+.note-banner-tab.expanded .banner-back-btn,
+.note-banner-tab:focus-within .banner-back-btn {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  pointer-events: auto;
+}
+
+/* Sliding Title Panel & Wrapper Mask */
+.banner-title-wrapper {
+  position: absolute;
+  top: 10px;
+  left: 20px; /* Shifted left to be deep behind the ribbon */
+  height: 40px;
+  width: 250px; /* Expanded Width to maintain the same right edge: 20px + 250px = 270px */
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none; /* Let clicks pass through when collapsed */
+}
+
+.note-banner-tab.expanded .banner-title-wrapper,
+.note-banner-tab:focus-within .banner-title-wrapper {
+  pointer-events: auto;
+}
+
+.banner-title-panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px 0 36px; /* 36px left padding to offset the 24px ribbon overlap and leave 12px margin */
+  transform: translateX(-100%);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: none;
 }
 
-.note-header-ui {
-  position: absolute;
-  top: var(--global-padding);
-  left: calc(var(--global-padding) + 64px);
-  z-index: 100;
+.note-banner-tab.expanded .banner-title-panel,
+.note-banner-tab:focus-within .banner-title-panel {
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .note-title-input {
   background: transparent;
   border: none;
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.15rem;
   font-weight: 800;
-  color: var(--text-dark);
+  color: var(--text-dark); /* black text */
   outline: none;
-  width: 200px;
+  width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  cursor: default;
 }
 
 .note-title-input::placeholder {
-  color: rgba(26, 26, 26, 0.5);
+  color: rgba(0, 0, 0, 0.4); /* darker placeholder for readability on light canvas */
+}
+
+/* Editable text mode active styling */
+.note-title-input.editing {
+  background-color: var(--text-light);
+  color: var(--text-dark);
+  cursor: text;
+  box-shadow: var(--elev-2);
 }
 
 .page-navigator {
@@ -596,7 +713,7 @@ button:active {
   align-items: center;
   padding: 4px 16px;
   gap: 8px;
-  z-index: 100;
+  z-index: 105;
 }
 
 #page-indicator {
@@ -612,23 +729,42 @@ button:active {
   background: transparent;
 }
 
-/* Toolbars */
+#zoom-reset-btn {
+  font-size: 0.85rem;
+  min-width: 48px;
+}/* Toolbars */
 .tool-menu {
   position: absolute;
-  bottom: calc(var(--global-padding) + 80px);
-  /* above FABs */
-  right: var(--global-padding);
+  /* Centered exactly over the secondary FAB (edit button) horizontally and vertically */
+  bottom: calc(var(--global-padding) + 104px);
+  right: calc(var(--global-padding) + 32px);
+  width: 53px; /* 5px wider than desktop edit button (48px) */
+  transform: translate(50%, 50%); /* Centers exactly over the edit button */
   background-color: var(--bg-main);
   border-radius: var(--toolbar-radius);
   display: flex;
   flex-direction: column;
+  align-items: center;
   padding: 8px;
   gap: 8px;
-  z-index: 99;
+  z-index: 99; /* Edit button in cluster is z-index 100, so it sits on top! */
+  box-shadow: var(--elev-3);
+  opacity: 1;
+  pointer-events: auto;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
 }
 
 .tool-menu.hidden {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  /* Shrink down to the center point of the edit button */
+  transform: translate(50%, 50%) scale(0.1);
+}
+
+.menu-spacer {
+  height: 48px; /* Matches the height of the desktop edit button */
+  width: 100%;
+  pointer-events: none;
 }
 
 .tool-btn {
@@ -650,21 +786,25 @@ button:active {
 
 .properties-toolbar {
   position: absolute;
-  bottom: var(--global-padding);
+  bottom: 0;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, 0);
   background-color: var(--bg-main);
-  border-radius: var(--toolbar-radius);
+  border-radius: 16px 16px 0 0; /* Tab-like: rounded top corners, flat bottom */
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 12px 24px;
   gap: 16px;
-  z-index: 99;
+  z-index: 110;
   color: var(--text-light);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3); /* Subtle upward shadow */
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; /* Elastic rise transition */
 }
 
 .properties-toolbar.hidden {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 100%); /* Slide down below the screen */
 }
 
 .toolbar-btn {
@@ -903,4 +1043,108 @@ button:active {
 .note-page.newly-added-page {
   animation: slideOutNewPage 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   position: relative;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --global-padding: 12px;
+  }
+
+  /* Page Navigator Sizing and Typography */
+  .page-navigator {
+    padding: 2px 8px;
+    gap: 4px;
+  }
+
+  .page-navigator .icon-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 0.8rem;
+  }
+
+  #page-indicator {
+    font-size: 0.8rem;
+    min-width: 32px;
+  }
+
+  .nav-divider {
+    height: 12px;
+    margin: 0 4px;
+  }
+
+  #zoom-reset-btn {
+    min-width: 36px;
+    font-size: 0.7rem;
+  }
+
+  /* FAB cluster and buttons */
+  .primary-fab {
+    width: 48px;
+    height: 48px;
+  }
+
+  .secondary-fab {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+  }
+
+  .fab-cluster {
+    gap: 12px;
+  }
+
+  /* Banner Tab Mobile Adaptation */
+  .banner-title-wrapper {
+    width: 170px;
+  }
+
+  .note-title-input {
+    font-size: 0.95rem;
+  }
+
+  /* Vertical Tool Menu */
+  .tool-menu {
+    bottom: calc(var(--global-padding) + 78px);
+    right: calc(var(--global-padding) + 24px);
+    width: 41px;
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .menu-spacer {
+    height: 36px;
+  }
+
+  .tool-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+
+  /* Properties Toolbar */
+  .properties-toolbar {
+    padding: 8px 16px;
+    gap: 8px;
+    font-size: 0.75rem;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .properties-toolbar .slider-container {
+    gap: 4px;
+    font-size: 0.7rem;
+  }
+
+  .properties-toolbar input[type="range"] {
+    width: 50px;
+  }
+
+  .properties-toolbar .toolbar-btn {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+  }
+
+  .properties-toolbar .color-picker-input {
+    width: 24px;
+    height: 24px;
+  }
 }

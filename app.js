@@ -154,7 +154,11 @@ function bindEvents() {
   });
   
   // Canvas Nav
-  els.canvas.backBtn.addEventListener('click', async () => {
+  els.canvas.backBtn.addEventListener('click', async (e) => {
+    if (document.activeElement === els.canvas.titleInput) {
+      els.canvas.titleInput.blur();
+    }
+
     els.canvas.backBtn.classList.add('animating');
     
     await new Promise(r => setTimeout(r, 250));
@@ -168,7 +172,85 @@ function bindEvents() {
     els.canvas.backBtn.classList.remove('animating');
     switchView('dashboard');
   });
-  els.canvas.titleInput.addEventListener('blur', updateNoteTitle);
+  // Banner Tab Title Editing & Mobile Expand
+  const bannerTab = document.getElementById('note-banner-tab');
+  
+  function enableTitleEditing() {
+    els.canvas.titleInput.removeAttribute('readonly');
+    els.canvas.titleInput.classList.add('editing');
+    els.canvas.titleInput.focus();
+    els.canvas.titleInput.select();
+  }
+
+  function disableTitleEditing() {
+    els.canvas.titleInput.setAttribute('readonly', 'true');
+    els.canvas.titleInput.classList.remove('editing');
+  }
+
+  if (bannerTab) {
+    // Click-to-toggle banner tab
+    bannerTab.addEventListener('click', (e) => {
+      // If clicking the back button or inside an active edit, don't toggle
+      if (e.target.closest('#back-to-dashboard-btn') || els.canvas.titleInput.classList.contains('editing')) {
+        return;
+      }
+      
+      if (bannerTab.classList.contains('expanded')) {
+        // Toggle collapse if clicking the ribbon itself
+        if (e.target.closest('#banner-ribbon')) {
+          bannerTab.classList.remove('expanded');
+          disableTitleEditing();
+        }
+      } else {
+        bannerTab.classList.add('expanded');
+      }
+      e.stopPropagation();
+    });
+
+    // Collapse when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#note-banner-tab')) {
+        bannerTab.classList.remove('expanded');
+        disableTitleEditing();
+      }
+    });
+  }
+
+  // Double click on title input to edit
+  els.canvas.titleInput.addEventListener('dblclick', (e) => {
+    enableTitleEditing();
+    e.stopPropagation();
+  });
+
+  // Double tap on mobile to edit
+  let lastTitleTap = 0;
+  els.canvas.titleInput.addEventListener('touchend', (e) => {
+    // If not expanded, let the tap expand the banner tab first
+    if (bannerTab && !bannerTab.classList.contains('expanded')) {
+      return;
+    }
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTitleTap;
+    if (tapLength < 300 && tapLength > 0) {
+      enableTitleEditing();
+      e.preventDefault();
+    }
+    lastTitleTap = currentTime;
+  });
+
+  // Finish editing on Enter
+  els.canvas.titleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      els.canvas.titleInput.blur();
+    }
+  });
+
+  // Restore readonly and save title on blur
+  els.canvas.titleInput.addEventListener('blur', () => {
+    disableTitleEditing();
+    updateNoteTitle();
+  });
   els.canvas.prevPageBtn.addEventListener('click', () => switchPage(-1));
   els.canvas.nextPageBtn.addEventListener('click', () => switchPage(1));
   els.canvas.addPageBtn.addEventListener('click', addPage);
@@ -404,6 +486,10 @@ function switchView(viewName) {
       els.views.canvas.classList.add('tool-pointer');
     } else {
       els.views.canvas.classList.remove('tool-pointer');
+    }
+    const bannerTab = document.getElementById('note-banner-tab');
+    if (bannerTab) {
+      bannerTab.classList.remove('expanded');
     }
     renderCanvas();
   }
@@ -704,6 +790,7 @@ async function createNewNote() {
 
 function openNote(id) {
   state.activeNoteId = id;
+  state.editor.selectedObjectId = null; // start clean with no active selection
   state.editor.currentPageIndex = 0;
   state.editor.zoom = 1.0;
   state.editor.panX = 0;
@@ -781,6 +868,13 @@ function handleResize() {
 function renderCanvas() {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
+
+  // Manage properties toolbar visibility strictly driven by active selection
+  if (state.editor.selectedObjectId) {
+    els.tools.properties.classList.remove('hidden');
+  } else {
+    els.tools.properties.classList.add('hidden');
+  }
 
   els.canvas.pagesTrack.innerHTML = '';
 
@@ -934,7 +1028,6 @@ function addPage() {
 // === TOOL LOGIC ===
 function toggleToolMenu() {
   els.tools.menu.classList.toggle('hidden');
-  els.tools.properties.classList.toggle('hidden');
   els.canvas.toggleToolsBtn.classList.toggle('active');
 }
 
