@@ -1027,8 +1027,14 @@ function addPage() {
 
 // === TOOL LOGIC ===
 function toggleToolMenu() {
-  els.tools.menu.classList.toggle('hidden');
-  els.canvas.toggleToolsBtn.classList.toggle('active');
+  const isHidden = els.tools.menu.classList.contains('hidden');
+  if (isHidden) {
+    els.tools.menu.classList.remove('hidden');
+    selectTool('draw');
+  } else {
+    els.tools.menu.classList.add('hidden');
+    selectTool('draw');
+  }
 }
 
 function selectTool(tool) {

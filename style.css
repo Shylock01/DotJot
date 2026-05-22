@@ -532,12 +532,6 @@ button:active {
   background-color: var(--accent-secondary);
 }
 
-.secondary-fab {
-  width: 48px;
-  height: 48px;
-  background-color: var(--accent-primary);
-  font-size: 1.5rem;
-}
 
 .icon-btn {
   width: 48px;
@@ -735,31 +729,30 @@ button:active {
 }/* Toolbars */
 .tool-menu {
   position: absolute;
-  /* Positioned directly above the edit button, centered horizontally with it */
-  bottom: calc(var(--global-padding) + 136px); /* Edit button top is global-padding + 128px. Adding an 8px gap. */
+  /* Anchored at the bottom center of the edit button position */
+  bottom: calc(var(--global-padding) + 80px); /* Aligns perfectly with the bottom of the edit FAB coordinate */
   right: calc(var(--global-padding) + 32px);
-  width: 53px; /* 5px wider than desktop edit button (48px) */
-  transform: translateX(50%); /* Centers horizontally over the edit button */
-  transform-origin: center bottom; /* Sprout/rise outwards from the bottom edge */
+  width: 53px; /* 5px wider than edit button (48px) */
+  height: 293px; /* Total expanded height: 6 buttons * 40px + 5 gaps * 8px + 2 paddings * 6.5px */
+  transform: translateX(50%); /* Centers horizontally over the edit FAB center line */
   background-color: var(--bg-main);
   border-radius: var(--toolbar-radius);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px;
+  justify-content: flex-end; /* Keeps the bottom button in the exact same spot while menu expands upwards */
+  padding: 6.5px;
   gap: 8px;
   z-index: 99;
   box-shadow: var(--elev-3);
-  opacity: 1;
-  pointer-events: auto;
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+  overflow: hidden; /* Clips all other tools when collapsed */
+  box-sizing: border-box;
+  transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .tool-menu.hidden {
-  opacity: 0;
-  pointer-events: none;
-  /* Shrink directly down to the top of the edit button */
-  transform: translateX(50%) scale(0.1);
+  height: 53px; /* Shrunk down to a perfect circle containing only the toggle/draw button */
+  border-radius: 50%;
 }
 
 .tool-btn {
@@ -1078,11 +1071,6 @@ button:active {
     height: 48px;
   }
 
-  .secondary-fab {
-    width: 36px;
-    height: 36px;
-    font-size: 1.1rem;
-  }
 
   .fab-cluster {
     gap: 12px;
@@ -1097,13 +1085,17 @@ button:active {
     font-size: 0.95rem;
   }
 
-  /* Vertical Tool Menu */
   .tool-menu {
-    bottom: calc(var(--global-padding) + 102px); /* Mobile edit button top is global-padding + 96px. Adding a 6px gap. */
+    bottom: calc(var(--global-padding) + 60px); /* Anchored at mobile FAB bottom coordinate */
     right: calc(var(--global-padding) + 24px);
     width: 41px;
-    padding: 4px;
+    height: 221px; /* 6 * 32px buttons + 5 gaps * 4px + 2 paddings * 4.5px */
+    padding: 4.5px;
     gap: 4px;
+  }
+
+  .tool-menu.hidden {
+    height: 41px; /* Perfect circular FAB on mobile */
   }
 
   .tool-btn {
