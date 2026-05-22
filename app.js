@@ -258,6 +258,7 @@ function bindEvents() {
   // Tools
   els.canvas.toggleToolsBtn.addEventListener('click', toggleToolMenu);
   els.tools.btns.forEach(btn => {
+    if (btn.id === 'toggle-tools-btn') return; // Skip toggle button, handled by toggleToolMenu
     btn.addEventListener('click', (e) => selectTool(e.currentTarget.dataset.tool));
   });
   els.tools.snapToggle.addEventListener('change', (e) => state.editor.isSnapEnabled = e.target.checked);
@@ -774,6 +775,8 @@ async function createNewNote() {
   state.editor.zoom = 1.0;
   state.editor.panX = 0;
   state.editor.panY = 0;
+  state.editor.activeTool = 'pointer';
+  if (els.tools.menu) els.tools.menu.classList.add('hidden');
   els.canvas.titleInput.value = '';
   renderCanvas();
 
@@ -795,6 +798,8 @@ function openNote(id) {
   state.editor.zoom = 1.0;
   state.editor.panX = 0;
   state.editor.panY = 0;
+  state.editor.activeTool = 'pointer';
+  if (els.tools.menu) els.tools.menu.classList.add('hidden');
   els.canvas.titleInput.value = state.notes[id].title;
   switchView('canvas');
 }
@@ -869,8 +874,8 @@ function renderCanvas() {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
 
-  // Manage properties toolbar visibility strictly driven by active selection
-  if (state.editor.selectedObjectId) {
+  // Manage properties toolbar visibility: show when an object is selected OR when any drawing/creation tool is active
+  if (state.editor.selectedObjectId || state.editor.activeTool !== 'pointer') {
     els.tools.properties.classList.remove('hidden');
   } else {
     els.tools.properties.classList.add('hidden');
@@ -1028,12 +1033,21 @@ function addPage() {
 // === TOOL LOGIC ===
 function toggleToolMenu() {
   const isHidden = els.tools.menu.classList.contains('hidden');
+  const isDrawActive = state.editor.activeTool === 'draw';
+
   if (isHidden) {
+    // If the Editor Sidebar is closed, open it and keep activeTool as 'pointer'
     els.tools.menu.classList.remove('hidden');
-    selectTool('draw');
   } else {
-    els.tools.menu.classList.add('hidden');
-    selectTool('draw');
+    // If the Editor Sidebar is open
+    if (isDrawActive) {
+      // If the draw tool is already active, close/shrink the Editor Sidebar and reset to pointer mode
+      selectTool('pointer');
+      els.tools.menu.classList.add('hidden');
+    } else {
+      // If any other tool is active (or pointer is active), select the 'draw' (Freehand) tool and keep the Editor Sidebar open
+      selectTool('draw');
+    }
   }
 }
 

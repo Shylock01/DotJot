@@ -437,10 +437,10 @@ p,
 .note-page::before {
   content: '';
   position: absolute;
-  top: 15px;
-  left: 15px;
-  right: 15px;
-  bottom: 15px;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
   background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
   background-size: var(--dot-spacing) var(--dot-spacing);
   background-position: 0 0;
@@ -735,7 +735,7 @@ button:active {
   width: 53px; /* 5px wider than edit button (48px) */
   height: 293px; /* Total expanded height: 6 buttons * 40px + 5 gaps * 8px + 2 paddings * 6.5px */
   transform: translateX(50%); /* Centers horizontally over the edit FAB center line */
-  background-color: var(--bg-main);
+  background-color: var(--accent-secondary);
   border-radius: var(--toolbar-radius);
   display: flex;
   flex-direction: column;
@@ -758,59 +758,95 @@ button:active {
 .tool-btn {
   width: 40px;
   height: 40px;
+  flex-shrink: 0; /* Prevents flexbox compression on vertical container collapse */
   border-radius: 50%;
   background-color: transparent;
-  color: var(--text-light);
+  color: var(--text-dark); /* High contrast dark text/icons on yellow background */
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .tool-btn.active {
-  background-color: var(--accent-secondary);
-  color: var(--text-dark);
+  background-color: var(--bg-main); /* High contrast dark active background on yellow menu */
+  color: var(--text-light);
+}
+
+/* Edit toggle button FAB styling (Orange with white icon) */
+#toggle-tools-btn {
+  background-color: var(--accent-primary);
+  color: var(--text-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Staggered tools fade in: hide non-edit tools when closed */
+.tool-menu.hidden .tool-btn:not(#toggle-tools-btn) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .properties-toolbar {
   position: absolute;
-  bottom: 0;
+  bottom: 24px; /* Floating! Rises up higher in front of page navigator */
   left: 50%;
   transform: translate(-50%, 0);
   background-color: var(--bg-main);
-  border-radius: 16px 16px 0 0; /* Tab-like: rounded top corners, flat bottom */
+  border-radius: 32px; /* Fully rounded top and bottom for a beautiful floating pill */
   display: flex;
   align-items: center;
-  padding: 12px 24px;
-  gap: 16px;
+  padding: 22px 44px; /* Much larger and more spacious padding */
+  gap: 24px;          /* Larger gap between controls */
   z-index: 110;
   color: var(--text-light);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3); /* Subtle upward shadow */
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35); /* Premium shadow for floating tab elevation */
+  font-size: 1.15rem; /* Larger text for premium readability */
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; /* Elastic rise transition */
 }
 
 .properties-toolbar.hidden {
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 100%); /* Slide down below the screen */
+  transform: translate(-50%, calc(100% + 40px)); /* Slide down out of view cleanly */
 }
 
 .toolbar-btn {
   color: var(--text-light);
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 16px; /* Larger button padding */
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 1rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.toolbar-btn:active {
+  transform: translateY(0);
 }
 
 .color-picker-input {
-  width: 32px;
-  height: 32px;
+  width: 42px; /* Larger color picker button */
+  height: 42px;
   border: none;
   border-radius: 50%;
   overflow: hidden;
   cursor: pointer;
   padding: 0;
   background: transparent;
+  transition: transform 0.2s ease;
+}
+
+.color-picker-input:hover {
+  transform: scale(1.1);
 }
 
 .color-picker-input::-webkit-color-swatch-wrapper {
@@ -818,15 +854,50 @@ button:active {
 }
 
 .color-picker-input::-webkit-color-swatch {
-  border: 2px solid white;
+  border: 2.5px solid white; /* Slightly thicker border */
   border-radius: 50%;
 }
 
 .slider-container {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
+  gap: 12px;
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+.properties-toolbar input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  width: 100px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.properties-toolbar input[type="range"]:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.properties-toolbar input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-secondary);
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.properties-toolbar input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: var(--text-light);
 }
 
 /* Canvas Objects */
@@ -1106,28 +1177,41 @@ button:active {
 
   /* Properties Toolbar */
   .properties-toolbar {
-    padding: 8px 16px;
-    gap: 8px;
-    font-size: 0.75rem;
-    border-radius: 12px 12px 0 0;
+    bottom: 16px; /* Floating tab on mobile too! */
+    padding: 14px 24px; /* Larger padding on mobile */
+    gap: 16px;          /* Larger gap */
+    font-size: 0.95rem; /* Larger font size */
+    border-radius: 20px; /* Fully rounded corners on mobile */
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .properties-toolbar.hidden {
+    transform: translate(-50%, calc(100% + 32px)); /* Clean mobile slide down */
   }
 
   .properties-toolbar .slider-container {
-    gap: 4px;
-    font-size: 0.7rem;
+    gap: 8px;
+    font-size: 0.85rem;
   }
 
   .properties-toolbar input[type="range"] {
-    width: 50px;
+    width: 70px; /* Wider range slider on mobile */
+    height: 5px;
+  }
+
+  .properties-toolbar input[type="range"]::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
   }
 
   .properties-toolbar .toolbar-btn {
-    padding: 2px 6px;
-    font-size: 0.75rem;
+    padding: 6px 12px; /* Larger button padding on mobile */
+    font-size: 0.85rem;
+    border-radius: 8px;
   }
 
   .properties-toolbar .color-picker-input {
-    width: 24px;
-    height: 24px;
+    width: 32px; /* Larger color picker button on mobile */
+    height: 32px;
   }
 }
