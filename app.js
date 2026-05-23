@@ -303,8 +303,8 @@ function bindEvents() {
   }
 
   if (bannerTab) {
-    // Pointer-down-to-toggle banner tab (snappier on mobile)
-    bannerTab.addEventListener('pointerdown', (e) => {
+    // Click-to-toggle banner tab
+    bannerTab.addEventListener('click', (e) => {
       // If clicking the back button or inside an active edit, don't toggle
       if (e.target.closest('#back-to-dashboard-btn') || els.canvas.titleInput.classList.contains('editing')) {
         return;
@@ -330,7 +330,6 @@ function bindEvents() {
       }
     };
     document.addEventListener('click', collapseBanner);
-    document.addEventListener('pointerdown', collapseBanner);
   }
 
   // Double click on title input to edit
@@ -1201,7 +1200,13 @@ function renderCanvas() {
       handlePointerDown(e);
     });
 
-    // Native click listeners removed: tapping is handled directly via handlePointerDown for snappy mobile response
+    // Handle tapping/clicking for text blocks to avoid mousedown native blur on laptops
+    pageEl.addEventListener('click', (e) => {
+      if (state.editor.activeTool === 'default') {
+        setActivePage(idx, pageEl);
+        handleCanvasClick(e);
+      }
+    });
 
     els.canvas.pagesTrack.appendChild(pageEl);
   });
@@ -1518,11 +1523,8 @@ function handlePointerDown(e) {
     return;
   }
 
-  // If in default mode, handle typing instantly on pointerdown to fix mobile tapping
-  if (state.editor.activeTool === 'default') {
-    handleCanvasClick(e);
-    return;
-  }
+  // If in default mode, we handle typing via click, not pointerdown
+  if (state.editor.activeTool === 'default') return;
 
   const coords = getCoords(e);
   let startX = coords.x;
