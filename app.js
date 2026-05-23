@@ -584,43 +584,18 @@ function bindEvents() {
     }
   }, { passive: false });
 
-  // Prevent browser native scroll/zoom gestures inside the canvas view
+  // Prevent browser native pinch-to-zoom gestures (2+ fingers) inside the canvas view
+  // to ensure our custom multi-touch pinch zoom takes precedence
   window.addEventListener('touchstart', (e) => {
     if (state.currentView !== 'canvas') return;
-    
-    // Always prevent multi-touch (2+ fingers) to ensure pinch-to-zoom is purely ours
     if (e.touches.length > 1) {
-      e.preventDefault();
-      return;
-    }
-
-    // For single-touch, block native scroll/zoom only if we are interacting with the canvas drawing area itself
-    const onUI = e.target.closest('.page-navigator') || 
-                 e.target.closest('.back-btn') || 
-                 e.target.closest('.editor-sidebar-wrapper') || 
-                 e.target.closest('.fab-cluster') || 
-                 e.target.closest('.properties-toolbar');
-                 
-    if (!onUI) {
       e.preventDefault();
     }
   }, { passive: false });
 
   window.addEventListener('touchmove', (e) => {
     if (state.currentView !== 'canvas') return;
-
     if (e.touches.length > 1) {
-      e.preventDefault();
-      return;
-    }
-
-    const onUI = e.target.closest('.page-navigator') || 
-                 e.target.closest('.back-btn') || 
-                 e.target.closest('.editor-sidebar-wrapper') || 
-                 e.target.closest('.fab-cluster') || 
-                 e.target.closest('.properties-toolbar');
-                 
-    if (!onUI) {
       e.preventDefault();
     }
   }, { passive: false });

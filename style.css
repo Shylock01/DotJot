@@ -445,8 +445,8 @@ p,
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0; /* Hidden by default */
-  pointer-events: none;
+  opacity: 0.25; /* Subtly visible by default */
+  pointer-events: auto; /* Always interactable */
   cursor: pointer;
   z-index: 10;
   transition: opacity 0.2s ease, transform 0.1s ease;
@@ -455,12 +455,11 @@ p,
 .note-page:hover .page-close-btn,
 .note-page:focus-within .page-close-btn,
 .note-page:has(.canvas-object.selected) .page-close-btn {
-  opacity: 0.15;
-  pointer-events: auto;
+  opacity: 0.5;
 }
 
 .page-close-btn:hover {
-  opacity: 0.8 !important;
+  opacity: 0.85 !important;
   transform: scale(1.1);
 }
 
@@ -1164,6 +1163,11 @@ button:active {
 .canvas-text-block.readonly {
   border: none;
   pointer-events: none;
+}
+
+.canvas-text-block,
+.canvas-text-block * {
+  touch-action: auto !important;
 }
 
 /* Simple Toggle Switch */
