@@ -1486,22 +1486,25 @@ function handleCanvasClick(e) {
     content: ''
   };
   page.objects.push(obj);
-  renderCanvas();
   
-  // Use a tiny timeout to ensure the DOM is fully rendered and native click processing is over
-  setTimeout(() => {
-    const el = state.editor.activePageEl?.querySelector(`[data-id="${obj.id}"]`);
-    if (el) {
-      el.focus();
-      // Optionally place caret at the end
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  }, 10);
+  // Directly create and append the DOM element without blowing away the canvas
+  // This is critical for mobile so the browser doesn't block the virtual keyboard
+  const el = createDomFromObject(obj);
+  if (state.editor.activePageEl) {
+    state.editor.activePageEl.appendChild(el);
+  }
+  
+  // Focus immediately in the same synchronous execution block
+  if (el) {
+    el.focus();
+    // Optionally place caret at the end
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
   
   saveCurrentNote();
 }
