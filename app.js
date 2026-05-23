@@ -1777,6 +1777,18 @@ function setupVisualViewportTracker() {
   const vv = window.visualViewport;
   if (!vv) return;
 
+  let baseHeight = window.innerHeight;
+
+  const isKeyboardOpen = () => {
+    const active = document.activeElement;
+    if (!active) return false;
+    const isInput = active.tagName === 'INPUT' || 
+                    active.tagName === 'TEXTAREA' || 
+                    active.contentEditable === 'true';
+    if (!isInput) return false;
+    return (baseHeight - vv.height) > 150;
+  };
+
   const updatePosition = () => {
     if (state.currentView !== 'canvas') return;
     
@@ -1784,24 +1796,45 @@ function setupVisualViewportTracker() {
     const navigator = els.canvas.pageNavigator;
     if (!toolbar) return;
 
-    // Calculate how much the visual viewport has shrunk from the bottom
-    const bottomOffset = window.innerHeight - vv.height - vv.offsetTop;
+    const isKeyboard = isKeyboardOpen();
 
-    if (bottomOffset > 60) { // Keyboard is likely open (offset > 60px)
-      toolbar.style.bottom = `${bottomOffset + 16}px`;
+    if (isKeyboard) {
+      const toolbarHeight = toolbar.offsetHeight || 50;
+      const navigatorHeight = navigator ? navigator.offsetHeight : 0;
+      
+      const vvBottom = vv.offsetTop + vv.height;
+      const toolbarTop = vvBottom - toolbarHeight - 16;
+      
+      toolbar.style.bottom = 'auto';
+      toolbar.style.top = `${toolbarTop}px`;
+      
       if (navigator) {
-        navigator.style.bottom = `${bottomOffset + 74}px`;
+        navigator.style.bottom = 'auto';
+        navigator.style.top = `${toolbarTop - navigatorHeight - 12}px`;
       }
     } else {
-      // Restore default values when keyboard is closed
       toolbar.style.bottom = '';
+      toolbar.style.top = '';
       if (navigator) {
         navigator.style.bottom = '';
+        navigator.style.top = '';
       }
     }
   };
 
-  vv.addEventListener('resize', updatePosition);
+  vv.addEventListener('resize', () => {
+    const active = document.activeElement;
+    const isInput = active && (
+      active.tagName === 'INPUT' || 
+      active.tagName === 'TEXTAREA' || 
+      active.contentEditable === 'true'
+    );
+    if (!isInput) {
+      baseHeight = vv.height;
+    }
+    updatePosition();
+  });
+  
   vv.addEventListener('scroll', updatePosition);
 }
 
