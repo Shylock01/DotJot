@@ -89,24 +89,18 @@ const StorageManager = {
     });
   },
   async save(notes) {
-    return new Promise(async (resolve) => {
-      // Local Save
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        chrome.storage.sync.set({ notes });
-      } else {
-        localStorage.setItem('jotdot_notes', JSON.stringify(notes));
-      }
-      
-      // Cloud Save
-      if (state.user && state.isSyncEnabled && db) {
-        try {
-          await db.collection('users').doc(state.user.uid).set({ notes });
-        } catch (e) {
-          console.error("Firebase sync error: ", e);
-        }
-      }
-      resolve();
-    });
+    // Local Save
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+      chrome.storage.sync.set({ notes });
+    } else {
+      localStorage.setItem('jotdot_notes', JSON.stringify(notes));
+    }
+    
+    // Cloud Save (Fire and forget, don't block UI)
+    if (state.user && state.isSyncEnabled && db) {
+      db.collection('users').doc(state.user.uid).set({ notes })
+        .catch(e => console.error("Firebase sync error: ", e));
+    }
   }
 };
 
