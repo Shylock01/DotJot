@@ -1513,9 +1513,24 @@ function handleCanvasClick(e) {
 }
 
 function handlePointerDown(e) {
+  // If clicking on an existing object and using pointer tool
+  if (state.editor.activeTool === 'pointer') {
+    const targetId = e.target.closest('.canvas-object')?.dataset.id;
+    state.editor.selectedObjectId = targetId || null;
+    renderCanvas();
+    return;
+  }
 
+  // If in default mode, we handled it via click
+  if (state.editor.activeTool === 'default') return;
 
-  
+  const coords = getCoords(e);
+  let startX = coords.x;
+  let startY = coords.y;
+
+  const note = state.notes[state.activeNoteId];
+  const page = note.pages[state.editor.activePageIndex];
+
   if (state.editor.isSnapEnabled && state.editor.activeTool !== 'draw' && state.editor.activeTool !== 'text') {
     startX = snapX(startX);
     startY = snapY(startY);
