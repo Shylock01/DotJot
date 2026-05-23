@@ -7,7 +7,7 @@
   --accent-secondary: #FFC107;
   --text-light: #FFFFFF;
   --text-dark: #1A1A1A;
-  --dot-color: #33180A;      /* 2 — dark brown: dot grid on note page */
+  --dot-color: rgba(51, 24, 10, 0.3); /* 2 — dark brown with 30% opacity: dot grid on note page */
   --selection-color: #0066FF;
 
   /* Typography */
@@ -39,6 +39,10 @@
 html {
   width: 100%;
   height: 100%;
+}
+
+.hidden {
+  display: none !important;
 }
 
 body {
@@ -424,26 +428,85 @@ p,
   background-color: var(--note-bg);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
   touch-action: none;
 }
 
+.page-close-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: var(--text-dark);
+  font-size: 1.5rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0; /* Hidden by default */
+  pointer-events: none;
+  cursor: pointer;
+  z-index: 10;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.note-page:hover .page-close-btn,
+.note-page:focus-within .page-close-btn,
+.note-page:has(.canvas-object.selected) .page-close-btn {
+  opacity: 0.15;
+  pointer-events: auto;
+}
+
+.page-close-btn:hover {
+  opacity: 0.8 !important;
+  transform: scale(1.1);
+}
+
+.page-close-btn:active {
+  transform: scale(0.95);
+}
 /* Ensure all objects and paths inside a page inherit touch-action: none to block browser scrolling */
 .note-page * {
   touch-action: none;
+}
+
+/* Unified Text Layer */
+.page-text-layer {
+  position: absolute;
+  top: 15px; /* Aligns first line close to the 35px dot row depending on font size */
+  left: 15px;
+  width: 300px;
+  height: 620px;
+  background: transparent;
+  border: none;
+  resize: none;
+  outline: none;
+  font-family: monospace; /* Critical for precise grid alignment */
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px; /* EXACTLY matches DOT_SPACING */
+  letter-spacing: calc(20px - 1ch); /* Forces character bounding box to be exactly 20px wide */
+  color: var(--text-dark);
+  z-index: 10; /* Above dots, below drawing objects */
+  pointer-events: auto; /* Always interactable */
+  padding: 0;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow: hidden;
 }
 
 /* Centered dot grid with even 15px margins around all page edges */
 .note-page::before {
   content: '';
   position: absolute;
-  top: 5px;
+  top: 25px;
   left: 5px;
   right: 5px;
   bottom: 5px;
   background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
   background-size: var(--dot-spacing) var(--dot-spacing);
-  background-position: 0 0;
   pointer-events: none;
   z-index: 0;
 }
@@ -519,13 +582,18 @@ button:active {
   flex-direction: column;
   gap: 16px;
   align-items: center;
-  z-index: 100;
+  z-index: 120;
 }
 
 .primary-fab {
-  width: 64px;
-  height: 64px;
+  width: 96px;
+  height: 96px;
   background-color: var(--accent-primary);
+}
+
+.primary-fab svg {
+  width: 48px;
+  height: 48px;
 }
 
 .primary-fab.active {
@@ -631,10 +699,11 @@ button:active {
 /* Sliding Title Panel & Wrapper Mask */
 .banner-title-wrapper {
   position: absolute;
-  top: 10px;
+  top: 15px;
   left: 20px; /* Shifted left to be deep behind the ribbon */
   height: 40px;
-  width: 250px; /* Expanded Width to maintain the same right edge: 20px + 250px = 270px */
+  width: calc(100vw - 74px); /* Leaves only a standard 24px gap from the right edge of the screen */
+  max-width: 600px; /* Caps the width on very large monitors so it doesn't span excessively */
   overflow: hidden;
   z-index: 1;
   pointer-events: none; /* Let clicks pass through when collapsed */
@@ -666,6 +735,7 @@ button:active {
   pointer-events: auto;
 }
 
+
 .note-title-input {
   background: transparent;
   border: none;
@@ -696,6 +766,25 @@ button:active {
   box-shadow: var(--elev-2);
 }
 
+/* Removed conflicting properties-toolbar that had top: 70px */
+
+.prop-layout {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.prop-layout.hidden {
+  display: none;
+}
+
+.prop-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 0 4px;
+}
+
 .page-navigator {
   position: absolute;
   bottom: var(--global-padding);
@@ -708,6 +797,11 @@ button:active {
   padding: 4px 16px;
   gap: 8px;
   z-index: 105;
+  transition: bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.page-navigator.editor-tab-visible {
+  bottom: 100px; /* Positioned tightly above properties-toolbar */
 }
 
 #page-indicator {
@@ -727,41 +821,59 @@ button:active {
   font-size: 0.85rem;
   min-width: 48px;
 }/* Toolbars */
+.editor-sidebar-wrapper {
+  position: absolute;
+  bottom: 136px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.editor-sidebar-wrapper > * {
+  pointer-events: auto;
+}
+
 .tool-menu {
   position: absolute;
-  /* Anchored at the bottom center of the edit button position */
-  bottom: calc(var(--global-padding) + 80px); /* Aligns perfectly with the bottom of the edit FAB coordinate */
-  right: calc(var(--global-padding) + 32px);
-  width: 53px; /* 5px wider than edit button (48px) */
-  height: 293px; /* Total expanded height: 6 buttons * 40px + 5 gaps * 8px + 2 paddings * 6.5px */
-  transform: translateX(50%); /* Centers horizontally over the edit FAB center line */
+  bottom: 24px; /* Anchored to middle of the 48px wrapper */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 53px;
+  height: 264px;
   background-color: var(--accent-secondary);
-  border-radius: var(--toolbar-radius);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end; /* Keeps the bottom button in the exact same spot while menu expands upwards */
-  padding: 6.5px;
-  gap: 8px;
-  z-index: 99;
+  border-radius: 26.5px;
   box-shadow: var(--elev-3);
-  overflow: hidden; /* Clips all other tools when collapsed */
-  box-sizing: border-box;
-  transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+  transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+  z-index: 1; /* BEHIND the toggle button */
 }
 
 .tool-menu.hidden {
-  height: 53px; /* Shrunk down to a perfect circle containing only the toggle/draw button */
-  border-radius: 50%;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tool-menu-inner {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 32px 0;
+  gap: 8px;
 }
 
 .tool-btn {
   width: 40px;
   height: 40px;
-  flex-shrink: 0; /* Prevents flexbox compression on vertical container collapse */
+  flex-shrink: 0;
   border-radius: 50%;
   background-color: transparent;
-  color: var(--text-dark); /* High contrast dark text/icons on yellow background */
+  color: var(--text-dark);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -770,21 +882,36 @@ button:active {
 }
 
 .tool-btn.active {
-  background-color: var(--bg-main); /* High contrast dark active background on yellow menu */
+  background-color: var(--bg-main);
   color: var(--text-light);
+}
+
+.tool-menu.hidden .tool-btn {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Edit toggle button FAB styling (Orange with white icon) */
 #toggle-tools-btn {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 48px;
   background-color: var(--accent-primary);
   color: var(--text-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+  box-shadow: var(--elev-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2; /* In front of the popup */
+  transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
-/* Staggered tools fade in: hide non-edit tools when closed */
-.tool-menu.hidden .tool-btn:not(#toggle-tools-btn) {
-  opacity: 0;
-  pointer-events: none;
+#toggle-tools-btn:active {
+  transform: translateX(-50%) scale(0.95);
 }
 
 .properties-toolbar {
@@ -796,12 +923,11 @@ button:active {
   border-radius: 32px; /* Fully rounded top and bottom for a beautiful floating pill */
   display: flex;
   align-items: center;
-  padding: 22px 44px; /* Much larger and more spacious padding */
+  padding: 12px 32px; /* Reduced vertical padding so it's less tall */
   gap: 24px;          /* Larger gap between controls */
   z-index: 110;
   color: var(--text-light);
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35); /* Premium shadow for floating tab elevation */
-  font-size: 1.15rem; /* Larger text for premium readability */
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; /* Elastic rise transition */
 }
 
@@ -833,19 +959,82 @@ button:active {
   transform: translateY(0);
 }
 
-.color-picker-input {
-  width: 42px; /* Larger color picker button */
-  height: 42px;
-  border: none;
-  border-radius: 50%;
-  overflow: hidden;
+.toolbar-icon-btn {
+  color: var(--text-light);
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 1.4rem; /* Larger font size for B/I/U buttons */
   cursor: pointer;
-  padding: 0;
-  background: transparent;
-  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.1s ease;
 }
 
-.color-picker-input:hover {
+.toolbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.toolbar-icon-btn:active {
+  transform: translateY(0);
+}
+
+#font-size-btn {
+  width: 44px;
+  height: 40px;
+  padding: 0; /* Let flexbox handle centering */
+}
+
+.color-picker-input {
+  display: none; /* Removed the old color picker but leaving this for reference if needed */
+}
+
+.color-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.color-popover {
+  position: absolute;
+  bottom: 84px; /* Default above the properties toolbar */
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-main);
+  border-radius: 20px;
+  padding: 16px;
+  z-index: 120;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.color-popover.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px);
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.1);
+  transition: transform 0.1s;
+}
+
+.color-swatch:hover {
   transform: scale(1.1);
 }
 
@@ -951,56 +1140,34 @@ button:active {
   cursor: nwse-resize;
 }
 
-.canvas-text-input {
+.canvas-text-block {
   background: transparent;
-  border: 1px dashed rgba(0, 0, 0, 0.2);
   outline: none;
   font-family: var(--font-body);
   font-size: 1rem;
   color: var(--text-dark);
-  min-width: 50px;
-  min-height: 24px;
-  resize: both;
-  overflow: hidden;
-  padding: 2px;
+  line-height: 20px; /* EXACTLY matches DOT_SPACING to keep wrapped lines on the grid */
+  min-width: 20px;
+  overflow: visible;
+  padding: 0;
+  margin: 0;
   white-space: pre-wrap;
+  word-wrap: break-word;
+  cursor: text;
+  pointer-events: auto;
 }
 
-.canvas-text-input:focus {
-  border: 1px solid var(--selection-color);
+.canvas-text-block:focus {
+  /* No bounding box */
 }
 
-.canvas-text-input.readonly {
+.canvas-text-block.readonly {
   border: none;
   pointer-events: none;
 }
 
 /* Simple Toggle Switch */
-.toggle-switch {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
 
-.toggle-switch input {
-  display: none;
-}
-
-.toggle-switch .slider {
-  position: relative;
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 4px 8px;
-  border-radius: 12px;
-}
-
-.toggle-switch input:checked+.slider {
-  background: var(--accent-secondary);
-  color: var(--text-dark);
-  font-weight: bold;
-}
 
 /* Dashboard Bottom Gradient */
 .dashboard-bottom-gradient {
@@ -1034,9 +1201,9 @@ button:active {
 
 .modal-content {
   background-color: var(--note-bg); /* cream — neutral read for dialogs */
-  padding: 24px;
+  padding: 20px 24px;
   border-radius: var(--card-radius);
-  max-width: 400px;
+  max-width: 300px; /* More compact */
   width: 90%;
   text-align: center;
 }
@@ -1062,15 +1229,15 @@ button:active {
 
 /* Version Tag */
 .version-tag {
-  position: absolute;
+  position: fixed;
   bottom: 16px;
   left: 24px;
   font-size: 0.75rem;
-  color: var(--text-light);
+  color: black;
   opacity: 0.4;
   font-family: var(--font-body);
   pointer-events: none;
-  z-index: 10;
+  z-index: 1000;
 }
 
 /* Nav Divider between page navigation and zoom controls */
@@ -1138,35 +1305,44 @@ button:active {
 
   /* FAB cluster and buttons */
   .primary-fab {
-    width: 48px;
-    height: 48px;
+    width: 72px;
+    height: 72px;
   }
 
+  .primary-fab svg {
+    width: 36px;
+    height: 36px;
+  }
 
   .fab-cluster {
     gap: 12px;
+    bottom: 16px;
+    right: 16px;
   }
 
-  /* Banner Tab Mobile Adaptation */
-  .banner-title-wrapper {
-    width: 170px;
-  }
 
-  .note-title-input {
-    font-size: 0.95rem;
+  .editor-sidebar-wrapper {
+    bottom: 100px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
   }
 
   .tool-menu {
-    bottom: calc(var(--global-padding) + 60px); /* Anchored at mobile FAB bottom coordinate */
-    right: calc(var(--global-padding) + 24px);
+    bottom: 18px; /* half of 36px wrapper */
     width: 41px;
-    height: 221px; /* 6 * 32px buttons + 5 gaps * 4px + 2 paddings * 4.5px */
-    padding: 4.5px;
-    gap: 4px;
+    height: 216px;
+    border-radius: 20.5px;
   }
 
   .tool-menu.hidden {
-    height: 41px; /* Perfect circular FAB on mobile */
+    height: 0;
+    border-radius: 20.5px;
+  }
+
+  .tool-menu-inner {
+    padding: 8px 0 24px 0;
+    gap: 4px;
   }
 
   .tool-btn {
@@ -1175,14 +1351,31 @@ button:active {
     font-size: 1rem;
   }
 
+  #toggle-tools-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Page Navigator mobile overrides */
+  .page-navigator {
+    bottom: 16px;
+  }
+
+  .page-navigator.editor-tab-visible {
+    bottom: 74px; /* Positioned tightly above properties-toolbar on mobile */
+  }
+
   /* Properties Toolbar */
   .properties-toolbar {
     bottom: 16px; /* Floating tab on mobile too! */
-    padding: 14px 24px; /* Larger padding on mobile */
-    gap: 16px;          /* Larger gap */
-    font-size: 0.95rem; /* Larger font size */
-    border-radius: 20px; /* Fully rounded corners on mobile */
+    padding: 6px 12px; /* Much smaller padding on mobile */
+    gap: 8px;          /* Tighter gap */
+    border-radius: 16px; 
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .prop-layout {
+    gap: 6px; /* Tighter layout for mobile items */
   }
 
   .properties-toolbar.hidden {
@@ -1205,13 +1398,247 @@ button:active {
   }
 
   .properties-toolbar .toolbar-btn {
-    padding: 6px 12px; /* Larger button padding on mobile */
+    padding: 4px 10px; /* Tighter button padding on mobile */
     font-size: 0.85rem;
-    border-radius: 8px;
+    border-radius: 6px;
   }
 
-  .properties-toolbar .color-picker-input {
-    width: 32px; /* Larger color picker button on mobile */
+  .properties-toolbar .toolbar-icon-btn {
+    padding: 4px 8px;
+    font-size: 1.1rem; /* Smaller icons on mobile */
+    border-radius: 6px;
+  }
+
+  #font-size-btn {
+    width: 34px;
     height: 32px;
   }
+
+  .properties-toolbar .color-indicator {
+    width: 20px; 
+    height: 20px;
+  }
+  
+  .color-popover {
+    bottom: 64px; /* Closer on mobile */
+    padding: 12px;
+  }
+
+  .color-grid {
+    gap: 8px;
+  }
+
+  .color-swatch {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .prop-divider {
+    height: 16px; /* Shorter divider on mobile */
+    margin: 0 2px;
+  }
+}
+
+/* --- Settings UI --- */
+.settings-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.2s;
+  opacity: 0.8;
+}
+
+.settings-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: rotate(30deg);
+  opacity: 1;
+}
+
+.settings-content {
+  width: 90%;
+  max-width: 400px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-header {
+  background-color: var(--bg-main);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-family: 'Fredoka One', cursive;
+  font-size: 20px;
+}
+
+.settings-section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+}
+
+.settings-section h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 16px;
+  color: var(--text-dark);
+}
+
+#auth-status-text {
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.primary-btn {
+  background-color: var(--accent-primary);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.2s;
+}
+
+.primary-btn:hover {
+  opacity: 0.9;
+}
+
+.secondary-btn {
+  background-color: transparent;
+  color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.2s;
+}
+
+.secondary-btn:hover {
+  background-color: rgba(67, 133, 244, 0.1);
+}
+
+.settings-input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.auth-buttons-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.auth-user-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.auth-user-row .settings-input {
+  margin-bottom: 0;
+  flex: 1;
+  background-color: var(--bg-light);
+  color: var(--text-muted);
+}
+
+.settings-subsection {
+  border-top: 1px solid var(--border-light);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.sync-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sync-help-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Toggle Switch CSS */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: var(--accent-primary);
+}
+
+input:disabled + .slider {
+  background-color: #e0e0e0;
+  cursor: not-allowed;
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.slider.round {
+  border-radius: 24px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
 }

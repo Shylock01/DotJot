@@ -1,4 +1,20 @@
 // === CONSTANTS & CONFIG ===
+const firebaseConfig = {
+  projectId: "dotjot-5d1ea",
+  appId: "1:330735426355:web:f35729981c59e1eba27c46",
+  storageBucket: "dotjot-5d1ea.firebasestorage.app",
+  apiKey: "AIzaSyAHOOrmr1Yn4puMvXPf0rfJElTFxi0nr9w",
+  authDomain: "dotjot-5d1ea.firebaseapp.com",
+  messagingSenderId: "330735426355"
+};
+
+if (typeof firebase !== 'undefined') {
+  firebase.initializeApp(firebaseConfig);
+}
+const auth = typeof firebase !== 'undefined' ? firebase.auth() : null;
+const db = typeof firebase !== 'undefined' ? firebase.firestore() : null;
+const googleProvider = typeof firebase !== 'undefined' ? new firebase.auth.GoogleAuthProvider() : null;
+
 const DOT_SPACING   = 20;
 const GRID_MARGIN_X = 15;
 const GRID_MARGIN_Y = 15;
@@ -9,13 +25,16 @@ const VIEWPORT_PAD = 24;               // side breathing room
 
 // === STATE MANAGEMENT ===
 let state = {
+  user: null,
+  isSyncEnabled: localStorage.getItem('jotdot_sync') === 'true',
+  syncUnsubscribe: null,
   currentView: 'dashboard', // 'dashboard' | 'canvas'
   activeNoteId: null,
   notes: {}, // record of Note objects
   isSelectionMode: false,
   selectedNotes: new Set(),
   editor: {
-    activeTool: 'pointer',
+    activeTool: 'default',
     selectedObjectId: null,
     isSnapEnabled: true,
     strokeWidth: 2,
@@ -56,27 +75,97 @@ Note Object Structure:
 const StorageManager = {
   async load() {
     return new Promise((resolve) => {
+      let data = null;
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         chrome.storage.sync.get(['notes'], (result) => {
           resolve(result.notes || {});
         });
+        return;
       } else {
-        const data = localStorage.getItem('jotdot_notes');
-        resolve(data ? JSON.parse(data) : {});
+        const raw = localStorage.getItem('jotdot_notes');
+        data = raw ? JSON.parse(raw) : {};
+        resolve(data);
       }
     });
   },
   async save(notes) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+      // Local Save
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        chrome.storage.sync.set({ notes }, () => resolve());
+        chrome.storage.sync.set({ notes });
       } else {
         localStorage.setItem('jotdot_notes', JSON.stringify(notes));
-        resolve();
       }
+      
+      // Cloud Save
+      if (state.user && state.isSyncEnabled && db) {
+        try {
+          await db.collection('users').doc(state.user.uid).set({ notes });
+        } catch (e) {
+          console.error("Firebase sync error: ", e);
+        }
+      }
+      resolve();
     });
   }
 };
+
+async function setupCloudSync() {
+  if (state.syncUnsubscribe) {
+    state.syncUnsubscribe();
+    state.syncUnsubscribe = null;
+  }
+  
+  if (state.user && state.isSyncEnabled) {
+    // 1. Safe Merge: Fetch cloud data first
+    try {
+      if (!db) return;
+      const docRef = db.collection('users').doc(state.user.uid);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        const cloudData = docSnap.data().notes || {};
+        // Merge cloud data into local data (cloud data takes precedence on conflict)
+        state.notes = { ...state.notes, ...cloudData };
+      }
+      // Push merged data back to both local and cloud
+      await StorageManager.save(state.notes);
+      
+      // Update UI with merged data
+      if (state.currentView === 'dashboard') {
+        renderDashboard();
+      } else if (state.currentView === 'canvas') {
+        if (state.notes[state.activeNoteId]) {
+          renderCanvas();
+        } else {
+          switchView('dashboard');
+        }
+      }
+    } catch (err) {
+      console.error("Merge error:", err);
+    }
+
+    // 2. Attach Listener
+    state.syncUnsubscribe = db.collection('users').doc(state.user.uid).onSnapshot((snapshot) => {
+      if (snapshot.exists) {
+        const cloudData = snapshot.data().notes;
+        if (cloudData) {
+          if (JSON.stringify(cloudData) !== JSON.stringify(state.notes)) {
+             state.notes = cloudData;
+             if (state.currentView === 'dashboard') {
+               renderDashboard();
+             } else if (state.currentView === 'canvas') {
+               if (state.notes[state.activeNoteId]) {
+                 renderCanvas();
+               } else {
+                 switchView('dashboard');
+               }
+             }
+          }
+        }
+      }
+    });
+  }
+}
 
 // === DOM ELEMENTS ===
 const els = {
@@ -105,24 +194,56 @@ const els = {
     toggleToolsBtn: document.getElementById('toggle-tools-btn'),
     zoomInBtn: document.getElementById('zoom-in-btn'),
     zoomOutBtn: document.getElementById('zoom-out-btn'),
-    zoomResetBtn: document.getElementById('zoom-reset-btn')
+    zoomResetBtn: document.getElementById('zoom-reset-btn'),
+    pageNavigator: document.querySelector('.page-navigator')
   },
   tools: {
     menu: document.getElementById('tool-menu'),
     properties: document.getElementById('properties-toolbar'),
-    btns: document.querySelectorAll('.tool-btn'),
-    snapToggle: document.getElementById('snap-toggle'),
-    strokeWidth: document.getElementById('stroke-width'),
-    strokeStyleBtn: document.getElementById('stroke-style-btn'),
-    colorPicker: document.getElementById('color-picker')
+    btns: document.querySelectorAll('.tool-btn')
+  },
+  settings: {
+    btn: document.getElementById('settings-btn'),
+    modal: document.getElementById('settings-modal'),
+    closeBtn: document.getElementById('close-settings-btn'),
+    
+    // Auth UI
+    authStatus: document.getElementById('auth-status-text'),
+    authLoggedOutView: document.getElementById('auth-logged-out-view'),
+    authLoggedInView: document.getElementById('auth-logged-in-view'),
+    authLogoutBtn: document.getElementById('auth-logout-btn'),
+    showLoginBtn: document.getElementById('show-login-btn'),
+    showSignupBtn: document.getElementById('show-signup-btn'),
+    
+    // Login Modal
+    loginModal: document.getElementById('login-modal'),
+    loginEmail: document.getElementById('login-email'),
+    loginPass: document.getElementById('login-password'),
+    loginConfirmBtn: document.getElementById('login-confirm-btn'),
+    loginCancelBtn: document.getElementById('login-cancel-btn'),
+    
+    // Signup Modal
+    signupModal: document.getElementById('signup-modal'),
+    signupEmail: document.getElementById('signup-email'),
+    signupPass: document.getElementById('signup-password'),
+    signupConfirmBtn: document.getElementById('signup-confirm-btn'),
+    signupCancelBtn: document.getElementById('signup-cancel-btn'),
+    
+    syncToggle: document.getElementById('sync-toggle')
   }
 };
 
-// === INITIALIZATION ===
+// === INIT ===
 async function init() {
   state.notes = await StorageManager.load();
-  bindEvents();
   renderDashboard();
+  switchView('dashboard');
+
+  setupAuthListeners();
+  setupSettingsListeners();
+  
+  // Dashboard Listeners
+  bindEvents();
 }
 
 function generateId() {
@@ -207,13 +328,15 @@ function bindEvents() {
       e.stopPropagation();
     });
 
-    // Collapse when clicking outside
-    document.addEventListener('click', (e) => {
+    // Collapse when interacting outside
+    const collapseBanner = (e) => {
       if (!e.target.closest('#note-banner-tab')) {
         bannerTab.classList.remove('expanded');
         disableTitleEditing();
       }
-    });
+    };
+    document.addEventListener('click', collapseBanner);
+    document.addEventListener('pointerdown', collapseBanner);
   }
 
   // Double click on title input to edit
@@ -261,12 +384,154 @@ function bindEvents() {
     if (btn.id === 'toggle-tools-btn') return; // Skip toggle button, handled by toggleToolMenu
     btn.addEventListener('click', (e) => selectTool(e.currentTarget.dataset.tool));
   });
-  els.tools.snapToggle.addEventListener('change', (e) => state.editor.isSnapEnabled = e.target.checked);
-  els.tools.strokeWidth.addEventListener('input', (e) => state.editor.strokeWidth = parseInt(e.target.value));
-  els.tools.colorPicker.addEventListener('input', (e) => state.editor.color = e.target.value);
-  els.tools.strokeStyleBtn.addEventListener('click', () => {
-    state.editor.strokeStyle = state.editor.strokeStyle === 'solid' ? 'dashed' : 'solid';
-    els.tools.strokeStyleBtn.textContent = state.editor.strokeStyle === 'solid' ? 'Solid' : 'Dashed';
+  
+  if (els.tools.drawColorPicker) {
+    els.tools.drawColorPicker.addEventListener('input', (e) => state.editor.color = e.target.value);
+  }
+
+  const colorPopover = document.getElementById('color-popover');
+  const colorGrid = colorPopover?.querySelector('.color-grid');
+  const textColorBtn = document.getElementById('text-color-btn');
+  const drawColorBtn = document.getElementById('draw-color-btn');
+  const colors = [
+    '#1A1A1A', '#8C8C8C', '#FFFFFF', '#FF3B30', '#FF9500', 
+    '#FFCC00', '#4CD964', '#5AC8FA', '#007AFF', '#5856D6'
+  ];
+
+  if (colorGrid) {
+    colors.forEach(color => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.backgroundColor = color;
+      
+      // Prevent focus stealing
+      swatch.addEventListener('mousedown', e => e.preventDefault());
+      swatch.addEventListener('touchstart', e => e.preventDefault());
+      
+      swatch.addEventListener('click', () => {
+        state.editor.color = color;
+        if (textColorBtn) textColorBtn.querySelector('.color-indicator').style.backgroundColor = color;
+        if (drawColorBtn) drawColorBtn.querySelector('.color-indicator').style.backgroundColor = color;
+        
+        if (document.activeElement?.classList.contains('canvas-text-block')) {
+          document.execCommand('foreColor', false, color);
+          document.activeElement.style.color = color;
+        }
+        colorPopover.classList.add('hidden');
+      });
+      colorGrid.appendChild(swatch);
+    });
+  }
+
+  const toggleColorPopover = () => {
+    if (colorPopover) colorPopover.classList.toggle('hidden');
+  };
+
+  if (textColorBtn) textColorBtn.addEventListener('click', toggleColorPopover);
+  if (drawColorBtn) drawColorBtn.addEventListener('click', toggleColorPopover);
+
+  // Close popover when clicking outside
+  document.addEventListener('mousedown', (e) => {
+    if (colorPopover && !colorPopover.classList.contains('hidden')) {
+      if (!colorPopover.contains(e.target) && !e.target.closest('.color-toggle-btn')) {
+        colorPopover.classList.add('hidden');
+      }
+    }
+  });
+
+  document.querySelectorAll('.toolbar-icon-btn').forEach(btn => {
+    // Prevent buttons from stealing focus when clicked
+    btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('touchstart', e => e.preventDefault());
+    
+    btn.addEventListener('click', (e) => {
+      const command = btn.dataset.command;
+      if (command) document.execCommand(command, false, null);
+    });
+  });
+
+  const fontSizeBtn = document.getElementById('font-size-btn');
+  const alignBtn = document.getElementById('align-btn');
+  
+  let currentSizeIndex = 1;
+  const sizes = [
+    { size: '1', label: '0.8rem', name: 'small' },
+    { size: '3', label: '1.1rem', name: 'regular' },
+    { size: '5', label: '1.5rem', name: 'large' }
+  ];
+
+  let currentAlignIndex = 0;
+  const alignments = [
+    { command: 'justifyLeft', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>' },
+    { command: 'justifyCenter', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>' },
+    { command: 'justifyRight', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>' }
+  ];
+
+  if (fontSizeBtn) {
+    fontSizeBtn.style.fontSize = sizes[currentSizeIndex].label; // Set initial size
+    
+    fontSizeBtn.addEventListener('click', (e) => {
+      currentSizeIndex = (currentSizeIndex + 1) % sizes.length;
+      const newSize = sizes[currentSizeIndex];
+      fontSizeBtn.style.fontSize = newSize.label;
+      document.execCommand('fontSize', false, newSize.size);
+    });
+  }
+
+  if (alignBtn) {
+    alignBtn.addEventListener('click', (e) => {
+      currentAlignIndex = (currentAlignIndex + 1) % alignments.length;
+      const newAlign = alignments[currentAlignIndex];
+      alignBtn.innerHTML = newAlign.icon;
+      document.execCommand(newAlign.command, false, null);
+    });
+  }
+
+  // Update toolbar state when selection changes (e.g. cursor moves into differently styled text)
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement?.classList.contains('canvas-text-block')) {
+      if (fontSizeBtn) {
+        const currentSize = document.queryCommandValue('fontSize');
+        if (currentSize) {
+          const matchedIndex = sizes.findIndex(s => s.size === currentSize.toString());
+          if (matchedIndex !== -1 && matchedIndex !== currentSizeIndex) {
+            currentSizeIndex = matchedIndex;
+            fontSizeBtn.style.fontSize = sizes[currentSizeIndex].label;
+          }
+        }
+      }
+      
+      if (alignBtn) {
+        const alignState = alignments.findIndex(a => document.queryCommandState(a.command));
+        if (alignState !== -1 && alignState !== currentAlignIndex) {
+          currentAlignIndex = alignState;
+          alignBtn.innerHTML = alignments[currentAlignIndex].icon;
+        }
+      }
+    }
+  });
+
+  els.views.canvas.addEventListener('focusin', (e) => {
+    if (e.target.classList.contains('canvas-text-block')) {
+      els.tools.properties.classList.remove('hidden');
+      const drawProps = document.getElementById('prop-layout-draw');
+      const textProps = document.getElementById('prop-layout-text');
+      if (drawProps) drawProps.classList.add('hidden');
+      if (textProps) textProps.classList.remove('hidden');
+      if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.add('editor-tab-visible');
+    }
+  });
+
+  els.views.canvas.addEventListener('focusout', (e) => {
+    if (e.target.classList.contains('canvas-text-block')) {
+      // Use setTimeout so if focus moves to formatting buttons, we don't hide
+      setTimeout(() => {
+        if (state.editor.activeTool === 'default' && document.activeElement?.classList.contains('canvas-text-block') === false) {
+          els.tools.properties.classList.add('hidden');
+          if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.remove('editor-tab-visible');
+        }
+      }, 50);
+    }
   });
 
   // Canvas Interactions — pointerdown is bound per-page in renderCanvas()
@@ -339,10 +604,10 @@ function bindEvents() {
     // For single-touch, block native scroll/zoom only if we are interacting with the canvas drawing area itself
     const onUI = e.target.closest('.page-navigator') || 
                  e.target.closest('.back-btn') || 
-                 e.target.closest('.tool-menu') || 
+                 e.target.closest('.editor-sidebar-wrapper') || 
                  e.target.closest('.fab-cluster') || 
                  e.target.closest('.properties-toolbar');
-    
+                 
     if (!onUI) {
       e.preventDefault();
     }
@@ -358,10 +623,10 @@ function bindEvents() {
 
     const onUI = e.target.closest('.page-navigator') || 
                  e.target.closest('.back-btn') || 
-                 e.target.closest('.tool-menu') || 
+                 e.target.closest('.editor-sidebar-wrapper') || 
                  e.target.closest('.fab-cluster') || 
                  e.target.closest('.properties-toolbar');
-    
+                 
     if (!onUI) {
       e.preventDefault();
     }
@@ -399,31 +664,8 @@ function bindEvents() {
       return;
     }
 
-    // Single-finger touch panning (Mobile)
-    if (e.pointerType === 'touch' && activePointers.size === 1) {
-      const isToolPointer = state.editor.activeTool === 'pointer';
-      const onObject = e.target.closest('.canvas-object');
-      const onResizeHandle = e.target.closest('.resize-handle');
-      const onUI = e.target.closest('.page-navigator') || 
-                   e.target.closest('.back-btn') || 
-                   e.target.closest('.tool-menu') || 
-                   e.target.closest('.fab-cluster') || 
-                   e.target.closest('.properties-toolbar');
-
-      if (onUI) return;
-
-      // Only pan if we are using the pointer tool, and not dragging shapes or resize handles
-      if (isToolPointer && !onObject && !onResizeHandle) {
-        isPanning = true;
-        startPanClientX = e.clientX;
-        startPanClientY = e.clientY;
-        startPanX = state.editor.panX || 0;
-        startPanY = state.editor.panY || 0;
-        
-        // Prevent default browser touch operations (like scrolling / swipe navigation)
-        e.preventDefault();
-      }
-    }
+    // Single-finger touch is now handled natively (scrolling, text focus, etc.)
+    // We only intercept if it's a specific tool drawing.
   });
 
   window.addEventListener('pointermove', (e) => {
@@ -447,15 +689,9 @@ function bindEvents() {
       return;
     }
 
-    // Single-finger touch panning execution
+    // Single-finger panning removed in favor of native scrolling
     if (isPanning && activePointers.size === 1) {
-      const dx = e.clientX - startPanClientX;
-      const dy = e.clientY - startPanClientY;
-      const zoom = state.editor.zoom || 1.0;
-      
-      state.editor.panX = startPanX + dx / zoom;
-      state.editor.panY = startPanY + dy / zoom;
-      applyZoomAndPan();
+      // no-op for now, let native scroll handle it
     }
   });
 
@@ -473,6 +709,14 @@ function bindEvents() {
   window.addEventListener('pointercancel', cleanPointer);
 }
 
+function setActivePage(index, el) {
+  state.editor.activePageIndex = index;
+  state.editor.activePageEl = el;
+  // Visual highlight for the active page if needed
+  document.querySelectorAll('.note-page').forEach(p => p.classList.remove('active-page'));
+  if (el) el.classList.add('active-page');
+}
+
 // === VIEW LOGIC ===
 function switchView(viewName) {
   state.currentView = viewName;
@@ -483,10 +727,10 @@ function switchView(viewName) {
     renderDashboard();
     state.activeNoteId = null;
   } else if (viewName === 'canvas') {
-    if (state.editor.activeTool === 'pointer') {
-      els.views.canvas.classList.add('tool-pointer');
+    if (state.editor.activeTool === 'default') {
+      els.views.canvas.classList.add('tool-default');
     } else {
-      els.views.canvas.classList.remove('tool-pointer');
+      els.views.canvas.classList.remove('tool-default');
     }
     const bannerTab = document.getElementById('note-banner-tab');
     if (bannerTab) {
@@ -562,9 +806,16 @@ function createNoteCard(note, isRecent) {
   
   const preview = document.createElement('div');
   preview.className = 'note-preview body-text';
-  // simple preview based on text objects
-  const texts = note.pages[0]?.objects.filter(o => o.type === 'text').map(o => o.content) || [];
-  preview.textContent = texts.join(' ') || 'Blank page...';
+  // simple preview based on text objects and unified text layer
+  const stripHtml = (html) => {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html.replace(/<br\s*[\/]?>/gi, ' ').replace(/<div[^>]*>/gi, ' ').replace(/<\/div>/gi, ' ');
+    return tmp.textContent || tmp.innerText || '';
+  };
+  const oldTexts = note.pages[0]?.objects.filter(o => o.type === 'text').map(o => stripHtml(o.content)) || [];
+  let previewText = note.pages[0]?.textData ? stripHtml(note.pages[0].textData) : oldTexts.join(' ');
+  preview.textContent = previewText.trim() || 'Blank page...';
 
   card.appendChild(title);
 
@@ -663,6 +914,7 @@ function createNoteCard(note, isRecent) {
 }
 
 let noteToDeleteId = null;
+let pageToDeleteIndex = null;
 let isBulkDelete = false;
 
 function enterSelectionMode(firstNoteId) {
@@ -732,11 +984,29 @@ function openBulkDeleteModal() {
 function closeDeleteModal() {
   noteToDeleteId = null;
   isBulkDelete = false;
+  pageToDeleteIndex = null;
   if (els.dash.deleteModal) els.dash.deleteModal.classList.add('hidden');
 }
 
 async function confirmDeleteNote() {
-  if (isBulkDelete) {
+  if (pageToDeleteIndex !== null) {
+    const note = state.notes[state.activeNoteId];
+    if (note && note.pages.length > 1) {
+      note.pages.splice(pageToDeleteIndex, 1);
+      if (state.editor.activePageIndex >= note.pages.length) {
+        state.editor.activePageIndex = Math.max(0, note.pages.length - 1);
+      }
+      await StorageManager.save(state.notes);
+      closeDeleteModal();
+      renderCanvas();
+      updatePageIndicator();
+    } else if (note && note.pages.length === 1) {
+      note.pages[0].objects = [];
+      await StorageManager.save(state.notes);
+      closeDeleteModal();
+      renderCanvas();
+    }
+  } else if (isBulkDelete) {
     // Snapshot IDs before clearing state
     const toDelete = [...state.selectedNotes];
     toDelete.forEach(id => delete state.notes[id]);
@@ -775,7 +1045,7 @@ async function createNewNote() {
   state.editor.zoom = 1.0;
   state.editor.panX = 0;
   state.editor.panY = 0;
-  state.editor.activeTool = 'pointer';
+  state.editor.activeTool = 'default';
   if (els.tools.menu) els.tools.menu.classList.add('hidden');
   els.canvas.titleInput.value = '';
   renderCanvas();
@@ -789,6 +1059,12 @@ async function createNewNote() {
   switchView('canvas');
   els.views.canvas.classList.remove('animating-in');
   els.dash.newNoteBtn.classList.remove('animating');
+
+  // Automatically start editing the title for a new note
+  els.canvas.titleInput.removeAttribute('readonly');
+  els.canvas.titleInput.classList.add('editing');
+  els.canvas.titleInput.focus();
+  els.canvas.titleInput.select();
 }
 
 function openNote(id) {
@@ -798,7 +1074,7 @@ function openNote(id) {
   state.editor.zoom = 1.0;
   state.editor.panX = 0;
   state.editor.panY = 0;
-  state.editor.activeTool = 'pointer';
+  state.editor.activeTool = 'default';
   if (els.tools.menu) els.tools.menu.classList.add('hidden');
   els.canvas.titleInput.value = state.notes[id].title;
   switchView('canvas');
@@ -874,11 +1150,20 @@ function renderCanvas() {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
 
-  // Manage properties toolbar visibility: show when an object is selected OR when any drawing/creation tool is active
-  if (state.editor.selectedObjectId || state.editor.activeTool !== 'pointer') {
+  // Manage properties toolbar visibility: auto-hide when typing (if activeTool is default)
+  if (state.editor.activeTool !== 'default') {
     els.tools.properties.classList.remove('hidden');
+    const drawProps = document.getElementById('prop-layout-draw');
+    const textProps = document.getElementById('prop-layout-text');
+    if (drawProps) drawProps.classList.remove('hidden');
+    if (textProps) textProps.classList.add('hidden');
+    if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.add('editor-tab-visible');
   } else {
-    els.tools.properties.classList.add('hidden');
+    // If we are in default mode, keep it hidden UNLESS a text block is actively focused
+    if (document.activeElement?.classList.contains('canvas-text-block') === false) {
+      els.tools.properties.classList.add('hidden');
+      if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.remove('editor-tab-visible');
+    }
   }
 
   els.canvas.pagesTrack.innerHTML = '';
@@ -887,8 +1172,29 @@ function renderCanvas() {
     const pageEl = document.createElement('div');
     pageEl.className = 'note-page';
     pageEl.dataset.pageIndex = idx;
-
     page.objects.forEach(obj => pageEl.appendChild(createDomFromObject(obj)));
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'page-close-btn';
+    closeBtn.innerHTML = '×';
+    closeBtn.title = 'Close Page';
+    
+    // Prevent the canvas pointerdown from firing when interacting with the close button
+    closeBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pageToDeleteIndex = idx;
+      if (page.objects.length === 0) {
+        confirmDeleteNote(); // Delete immediately if empty
+      } else {
+        const modalText = document.getElementById('delete-modal-text');
+        if (modalText) modalText.textContent = 'Delete page?';
+        const deleteModal = document.getElementById('delete-modal');
+        if (deleteModal) deleteModal.classList.remove('hidden');
+      }
+    });
+    pageEl.appendChild(closeBtn);
 
     if (state.editor.justAddedPageIndex === idx) {
       pageEl.classList.add('newly-added-page');
@@ -897,9 +1203,16 @@ function renderCanvas() {
 
     // Each page handles its own pointerdown so we know which page is being drawn on
     pageEl.addEventListener('pointerdown', (e) => {
-      state.editor.activePageIndex = idx;
-      state.editor.activePageEl    = pageEl;
+      setActivePage(idx, pageEl);
       handlePointerDown(e);
+    });
+
+    // Handle tapping/clicking for text blocks to avoid mousedown native blur on laptops
+    pageEl.addEventListener('click', (e) => {
+      if (state.editor.activeTool === 'default') {
+        setActivePage(idx, pageEl);
+        handleCanvasClick(e);
+      }
     });
 
     els.canvas.pagesTrack.appendChild(pageEl);
@@ -909,8 +1222,10 @@ function renderCanvas() {
   const activeEl = els.canvas.pagesTrack.querySelector(
     `.note-page[data-page-index="${state.editor.activePageIndex}"]`
   );
-  state.editor.activePageEl = activeEl ||
-    els.canvas.pagesTrack.querySelector('.note-page');
+  setActivePage(
+    state.editor.activePageIndex,
+    activeEl || els.canvas.pagesTrack.querySelector('.note-page')
+  );
 
   updateViewport(false);
 }
@@ -918,20 +1233,30 @@ function renderCanvas() {
 function createDomFromObject(obj) {
   let el;
   if (obj.type === 'text') {
-    el = document.createElement('textarea');
-    el.className = 'canvas-object canvas-text-input';
-    el.value = obj.content;
+    el = document.createElement('div');
+    el.contentEditable = true;
+    el.className = 'canvas-object canvas-text-block';
+    el.innerHTML = obj.content || '';
     el.style.left = obj.x + 'px';
     el.style.top = obj.y + 'px';
-    el.style.width = obj.width + 'px';
-    el.style.height = obj.height + 'px';
+    // Max width to prevent expanding past the right grid margin (330px total width, 15px right margin = 315px max boundary)
+    el.style.maxWidth = (315 - obj.x) + 'px';
+    el.style.minWidth = '20px';
     el.style.color = obj.color;
     
     // Auto-save on blur
     el.addEventListener('blur', () => {
-      obj.content = el.value;
+      obj.content = el.innerHTML;
       obj.width = el.offsetWidth;
       obj.height = el.offsetHeight;
+      
+      // If empty, delete it
+      if (!el.innerText.trim()) {
+        const note = state.notes[state.activeNoteId];
+        const page = note.pages[state.editor.activePageIndex];
+        page.objects = page.objects.filter(o => o.id !== obj.id);
+        renderCanvas();
+      }
       saveCurrentNote();
     });
   } else {
@@ -1000,13 +1325,11 @@ function switchPage(dir) {
   const newIdx = Math.max(0, Math.min(maxIdx, state.editor.currentPageIndex + dir));
   if (newIdx !== state.editor.currentPageIndex) {
     state.editor.currentPageIndex = newIdx;
-    state.editor.activePageIndex  = newIdx;
     updateViewport(true);
     // Update activePageEl after transition (DOM already exists)
-    const el = els.canvas.pagesTrack.querySelector(
-      `.note-page[data-page-index="${newIdx}"]`
-    );
-    state.editor.activePageEl = el || state.editor.activePageEl;
+    const el = els.canvas.pagesTrack.querySelector(`.note-page[data-page-index="${newIdx}"]`);
+    setActivePage(newIdx, el || state.editor.activePageEl);
+    isPanning = false;
   }
 }
 
@@ -1033,38 +1356,34 @@ function addPage() {
 // === TOOL LOGIC ===
 function toggleToolMenu() {
   const isHidden = els.tools.menu.classList.contains('hidden');
-  const isDrawActive = state.editor.activeTool === 'draw';
-
   if (isHidden) {
-    // If the Editor Sidebar is closed, open it and keep activeTool as 'pointer'
     els.tools.menu.classList.remove('hidden');
   } else {
-    // If the Editor Sidebar is open
-    if (isDrawActive) {
-      // If the draw tool is already active, close/shrink the Editor Sidebar and reset to pointer mode
-      selectTool('pointer');
-      els.tools.menu.classList.add('hidden');
-    } else {
-      // If any other tool is active (or pointer is active), select the 'draw' (Freehand) tool and keep the Editor Sidebar open
-      selectTool('draw');
-    }
+    selectTool('default');
+    state.editor.selectedObjectId = null;
+    els.tools.menu.classList.add('hidden');
+    renderCanvas();
   }
 }
 
 function selectTool(tool) {
-  state.editor.activeTool = tool;
-  state.editor.selectedObjectId = null; // deselect on tool change
-  els.tools.btns.forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  if (state.editor.activeTool === tool) {
+    state.editor.activeTool = 'default';
+  } else {
+    state.editor.activeTool = tool;
+  }
+  
+  els.tools.btns.forEach(b => b.classList.toggle('active', b.dataset.tool === state.editor.activeTool));
   
   if (els.views.canvas) {
-    if (tool === 'pointer') {
-      els.views.canvas.classList.add('tool-pointer');
+    if (state.editor.activeTool === 'default') {
+      els.views.canvas.classList.add('tool-default');
     } else {
-      els.views.canvas.classList.remove('tool-pointer');
+      els.views.canvas.classList.remove('tool-default');
     }
   }
   
-  renderCanvas(); // re-render to remove selection
+  renderCanvas(); // re-render to update UI
 }
 
 function snapX(val) {
@@ -1085,9 +1404,13 @@ function applyZoomAndPan() {
   zoom = Math.max(1.0, Math.min(2.0, zoom));
   state.editor.zoom = zoom;
 
-  // Calculate panning limits based on zoom level: (zoom - 1.0) * dimension / 2
-  const limitX = PAGE_WIDTH * (zoom - 1.0) / 2;
-  const limitY = PAGE_HEIGHT * (zoom - 1.0) / 2;
+  // Calculate panning limits based on actual viewport size and zoom level
+  // panX * zoom = layoutW * (zoom - 1) / 2  =>  panX = layoutW * (zoom - 1) / (2 * zoom)
+  const layoutW = els.canvas.pagesViewport ? els.canvas.pagesViewport.offsetWidth : PAGE_WIDTH;
+  const layoutH = els.canvas.pagesViewport ? els.canvas.pagesViewport.offsetHeight : PAGE_HEIGHT;
+  
+  const limitX = layoutW * (zoom - 1.0) / (2 * zoom);
+  const limitY = layoutH * (zoom - 1.0) / (2 * zoom);
 
   let panX = state.editor.panX || 0;
   let panY = state.editor.panY || 0;
@@ -1138,18 +1461,66 @@ function getCoords(e) {
   };
 }
 
-function handlePointerDown(e) {
-  // If clicking on an existing object and using pointer tool
-  if (state.editor.activeTool === 'pointer') {
-    const targetId = e.target.closest('.canvas-object')?.dataset.id;
-    state.editor.selectedObjectId = targetId || null;
-    renderCanvas();
+function handleCanvasClick(e) {
+  // If clicking on a resize handle or an existing object while in default typing mode, let native events handle it
+  const isResizeHandle = e.target.classList.contains('resize-handle');
+  if (isResizeHandle) return;
+
+  const targetObj = e.target.closest('.canvas-object');
+  if (targetObj && state.editor.activeTool === 'default') {
     return;
   }
 
   const coords = getCoords(e);
   let startX = coords.x;
   let startY = coords.y;
+
+  const note = state.notes[state.activeNoteId];
+  const page = note.pages[state.editor.activePageIndex];
+
+  state.editor.selectedObjectId = null;
+  
+  // Spawn an auto-expanding grid text block where the user clicked!
+  const targetLine = Math.floor(Math.max(0, startY - 15) / 20);
+  const targetCol = Math.floor(Math.max(0, startX - 15) / 20);
+  
+  const snapGridX = 15 + targetCol * 20;
+  const snapGridY = 15 + targetLine * 20;
+  
+  const obj = {
+    id: generateId(),
+    type: 'text',
+    x: snapGridX,
+    y: snapGridY,
+    width: 'auto', // dynamic width
+    height: 'auto',
+    color: state.editor.color,
+    content: ''
+  };
+  page.objects.push(obj);
+  renderCanvas();
+  
+  // Use a tiny timeout to ensure the DOM is fully rendered and native click processing is over
+  setTimeout(() => {
+    const el = state.editor.activePageEl?.querySelector(`[data-id="${obj.id}"]`);
+    if (el) {
+      el.focus();
+      // Optionally place caret at the end
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }, 10);
+  
+  saveCurrentNote();
+}
+
+function handlePointerDown(e) {
+
+
   
   if (state.editor.isSnapEnabled && state.editor.activeTool !== 'draw' && state.editor.activeTool !== 'text') {
     startX = snapX(startX);
@@ -1159,9 +1530,6 @@ function handlePointerDown(e) {
   state.editor.isDrawing = true;
   state.editor.startX = startX;
   state.editor.startY = startY;
-
-  const note = state.notes[state.activeNoteId];
-  const page = note.pages[state.editor.activePageIndex];
 
   if (state.editor.activeTool === 'text') {
     // Spawns text area immediately
@@ -1305,5 +1673,123 @@ function handleTouchEnd(e) {
   // handled by pointerup
 }
 
+// === SETTINGS & AUTH LOGIC ===
+function setupSettingsListeners() {
+  els.settings.btn.addEventListener('click', () => {
+    els.settings.modal.classList.remove('hidden');
+  });
+
+  els.settings.closeBtn.addEventListener('click', () => {
+    els.settings.modal.classList.add('hidden');
+  });
+
+  [els.settings.modal, els.settings.loginModal, els.settings.signupModal].forEach(m => {
+    m.addEventListener('click', (e) => {
+      if (e.target === m) m.classList.add('hidden');
+    });
+  });
+
+  els.settings.showLoginBtn.addEventListener('click', () => {
+    els.settings.loginModal.classList.remove('hidden');
+  });
+  els.settings.loginCancelBtn.addEventListener('click', () => {
+    els.settings.loginModal.classList.add('hidden');
+  });
+
+  els.settings.showSignupBtn.addEventListener('click', () => {
+    els.settings.signupModal.classList.remove('hidden');
+  });
+  els.settings.signupCancelBtn.addEventListener('click', () => {
+    els.settings.signupModal.classList.add('hidden');
+  });
+
+  els.settings.syncToggle.addEventListener('change', async (e) => {
+    state.isSyncEnabled = e.target.checked;
+    localStorage.setItem('jotdot_sync', state.isSyncEnabled ? 'true' : 'false');
+    
+    if (state.isSyncEnabled) {
+      await setupCloudSync(); // This will handle merging and saving securely
+    } else {
+      if (state.syncUnsubscribe) {
+        state.syncUnsubscribe();
+        state.syncUnsubscribe = null;
+      }
+    }
+  });
+}
+
+function setupAuthListeners() {
+  if (!auth) return;
+  auth.onAuthStateChanged((user) => {
+    state.user = user;
+    if (user) {
+      els.settings.authStatus.value = user.email;
+      els.settings.authLoggedOutView.classList.add('hidden');
+      els.settings.authLoggedInView.classList.remove('hidden');
+      els.settings.syncToggle.disabled = false;
+      
+      if (state.isSyncEnabled) {
+        els.settings.syncToggle.checked = true;
+        setupCloudSync();
+      }
+    } else {
+      els.settings.authStatus.value = '';
+      els.settings.authLoggedOutView.classList.remove('hidden');
+      els.settings.authLoggedInView.classList.add('hidden');
+      els.settings.syncToggle.disabled = true;
+      els.settings.syncToggle.checked = false;
+      
+      if (state.syncUnsubscribe) {
+        state.syncUnsubscribe();
+        state.syncUnsubscribe = null;
+      }
+    }
+  });
+
+  els.settings.loginConfirmBtn.addEventListener('click', async () => {
+    const email = els.settings.loginEmail.value;
+    const pass = els.settings.loginPass.value;
+    if (!email || !pass) return alert("Please enter email and password");
+    try {
+      await auth.signInWithEmailAndPassword(email, pass);
+      els.settings.loginEmail.value = '';
+      els.settings.loginPass.value = '';
+      els.settings.loginModal.classList.add('hidden');
+    } catch (err) {
+      alert(err.message);
+      console.error("Login Error", err);
+    }
+  });
+
+  els.settings.signupConfirmBtn.addEventListener('click', async () => {
+    const email = els.settings.signupEmail.value;
+    const pass = els.settings.signupPass.value;
+    if (!email || !pass) return alert("Please enter email and password");
+    try {
+      await auth.createUserWithEmailAndPassword(email, pass);
+      els.settings.signupEmail.value = '';
+      els.settings.signupPass.value = '';
+      els.settings.signupModal.classList.add('hidden');
+    } catch (err) {
+      alert(err.message);
+      console.error("Signup Error", err);
+    }
+  });
+
+  els.settings.authLogoutBtn.addEventListener('click', async () => {
+    if (state.user) {
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.error("Logout Error", err);
+      }
+    }
+  });
+}
+
 // Boot
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
