@@ -238,6 +238,8 @@ async function init() {
   
   // Dashboard Listeners
   bindEvents();
+
+  setupVisualViewportTracker();
 }
 
 function generateId() {
@@ -399,7 +401,6 @@ function bindEvents() {
       
       // Prevent focus stealing
       swatch.addEventListener('mousedown', e => e.preventDefault());
-      swatch.addEventListener('touchstart', e => e.preventDefault());
       
       swatch.addEventListener('click', () => {
         state.editor.color = color;
@@ -435,7 +436,6 @@ function bindEvents() {
   document.querySelectorAll('.toolbar-icon-btn').forEach(btn => {
     // Prevent buttons from stealing focus when clicked
     btn.addEventListener('mousedown', e => e.preventDefault());
-    btn.addEventListener('touchstart', e => e.preventDefault());
     
     btn.addEventListener('click', (e) => {
       const command = btn.dataset.command;
@@ -1771,6 +1771,38 @@ function setupAuthListeners() {
       }
     }
   });
+}
+
+function setupVisualViewportTracker() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+
+  const updatePosition = () => {
+    if (state.currentView !== 'canvas') return;
+    
+    const toolbar = els.tools.properties;
+    const navigator = els.canvas.pageNavigator;
+    if (!toolbar) return;
+
+    // Calculate how much the visual viewport has shrunk from the bottom
+    const bottomOffset = window.innerHeight - vv.height - vv.offsetTop;
+
+    if (bottomOffset > 60) { // Keyboard is likely open (offset > 60px)
+      toolbar.style.bottom = `${bottomOffset + 16}px`;
+      if (navigator) {
+        navigator.style.bottom = `${bottomOffset + 74}px`;
+      }
+    } else {
+      // Restore default values when keyboard is closed
+      toolbar.style.bottom = '';
+      if (navigator) {
+        navigator.style.bottom = '';
+      }
+    }
+  };
+
+  vv.addEventListener('resize', updatePosition);
+  vv.addEventListener('scroll', updatePosition);
 }
 
 // Boot
