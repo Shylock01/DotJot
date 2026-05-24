@@ -1774,7 +1774,16 @@ function setupAuthListeners() {
 }
 
 function setupVisualViewportTracker() {
-  const vv = window.visualViewport;
+  // Access parent visualViewport if running inside a same-origin PWA shell, fallback to local
+  let vv = window.visualViewport;
+  try {
+    if (window.parent && window.parent !== window && window.parent.visualViewport) {
+      vv = window.parent.visualViewport;
+    }
+  } catch (e) {
+    console.warn("Cross-origin parent visualViewport access blocked, falling back to local:", e);
+  }
+
   if (!vv) return;
 
   let maxHeight = vv.height;
