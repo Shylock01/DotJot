@@ -1778,16 +1778,7 @@ function setupVisualViewportTracker() {
   if (!vv) return;
 
   let baseHeight = window.innerHeight;
-
-  const isKeyboardOpen = () => {
-    const active = document.activeElement;
-    if (!active) return false;
-    const isInput = active.tagName === 'INPUT' || 
-                    active.tagName === 'TEXTAREA' || 
-                    active.contentEditable === 'true';
-    if (!isInput) return false;
-    return (baseHeight - vv.height) > 150;
-  };
+  let baseWidth = window.innerWidth;
 
   const updatePosition = () => {
     if (state.currentView !== 'canvas') return;
@@ -1796,45 +1787,43 @@ function setupVisualViewportTracker() {
     const navigator = els.canvas.pageNavigator;
     if (!toolbar) return;
 
-    const isKeyboard = isKeyboardOpen();
+    // Detect orientation change
+    if (Math.abs(window.innerWidth - baseWidth) > 20) {
+      baseWidth = window.innerWidth;
+      baseHeight = window.innerHeight;
+    }
+
+    // Keyboard is open if visual viewport has shrunk vertically without rotating
+    const isKeyboard = (baseHeight - vv.height) > 100;
 
     if (isKeyboard) {
-      const toolbarHeight = toolbar.offsetHeight || 50;
-      const navigatorHeight = navigator ? navigator.offsetHeight : 0;
+      const toolbarHeight = toolbar.offsetHeight || 42;
+      const navigatorHeight = navigator ? navigator.offsetHeight : 32;
       
-      const vvBottom = vv.offsetTop + vv.height;
-      const toolbarTop = vvBottom - toolbarHeight - 16;
+      const toolbarTop = vv.height - toolbarHeight - 16;
       
+      toolbar.style.position = 'fixed';
       toolbar.style.bottom = 'auto';
       toolbar.style.top = `${toolbarTop}px`;
       
       if (navigator) {
+        navigator.style.position = 'fixed';
         navigator.style.bottom = 'auto';
         navigator.style.top = `${toolbarTop - navigatorHeight - 12}px`;
       }
     } else {
+      toolbar.style.position = '';
       toolbar.style.bottom = '';
       toolbar.style.top = '';
       if (navigator) {
+        navigator.style.position = '';
         navigator.style.bottom = '';
         navigator.style.top = '';
       }
     }
   };
 
-  vv.addEventListener('resize', () => {
-    const active = document.activeElement;
-    const isInput = active && (
-      active.tagName === 'INPUT' || 
-      active.tagName === 'TEXTAREA' || 
-      active.contentEditable === 'true'
-    );
-    if (!isInput) {
-      baseHeight = vv.height;
-    }
-    updatePosition();
-  });
-  
+  vv.addEventListener('resize', updatePosition);
   vv.addEventListener('scroll', updatePosition);
 }
 

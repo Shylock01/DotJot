@@ -1001,7 +1001,7 @@ button:active {
 
 .color-popover {
   position: absolute;
-  bottom: 84px; /* Default above the properties toolbar */
+  bottom: calc(100% + 12px); /* Positioned exactly 12px above properties toolbar */
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-main);
@@ -1372,14 +1372,14 @@ button:active {
   /* Properties Toolbar */
   .properties-toolbar {
     bottom: 16px; /* Floating tab on mobile too! */
-    padding: 6px 12px; /* Much smaller padding on mobile */
-    gap: 8px;          /* Tighter gap */
-    border-radius: 16px; 
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    padding: 4px 8px; /* Ultra-tight padding */
+    gap: 4px;          /* Minimum gap */
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   }
 
   .prop-layout {
-    gap: 6px; /* Tighter layout for mobile items */
+    gap: 4px;
   }
 
   .properties-toolbar.hidden {
@@ -1402,29 +1402,29 @@ button:active {
   }
 
   .properties-toolbar .toolbar-btn {
-    padding: 4px 10px; /* Tighter button padding on mobile */
-    font-size: 0.85rem;
-    border-radius: 6px;
+    padding: 2px 6px; /* Tighter button padding on mobile */
+    font-size: 0.75rem;
+    border-radius: 4px;
   }
 
   .properties-toolbar .toolbar-icon-btn {
-    padding: 4px 8px;
-    font-size: 1.1rem; /* Smaller icons on mobile */
-    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 1rem; /* Smaller icons on mobile */
+    border-radius: 4px;
   }
 
   #font-size-btn {
-    width: 34px;
-    height: 32px;
+    width: 28px;
+    height: 26px;
   }
 
   .properties-toolbar .color-indicator {
-    width: 20px; 
-    height: 20px;
+    width: 16px; 
+    height: 16px;
   }
   
   .color-popover {
-    bottom: 64px; /* Closer on mobile */
+    bottom: calc(100% + 8px); /* Float 8px above toolbar on mobile */
     padding: 12px;
   }
 
@@ -1438,8 +1438,8 @@ button:active {
   }
   
   .prop-divider {
-    height: 16px; /* Shorter divider on mobile */
-    margin: 0 2px;
+    height: 12px; /* Shorter divider on mobile */
+    margin: 0 1px;
   }
 }
 
