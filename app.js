@@ -1777,8 +1777,8 @@ function setupVisualViewportTracker() {
   const vv = window.visualViewport;
   if (!vv) return;
 
-  let baseHeight = window.innerHeight;
-  let baseWidth = window.innerWidth;
+  let maxHeight = vv.height;
+  let lastWidth = vv.width;
 
   const updatePosition = () => {
     if (state.currentView !== 'canvas') return;
@@ -1787,27 +1787,33 @@ function setupVisualViewportTracker() {
     const navigator = els.canvas.pageNavigator;
     if (!toolbar) return;
 
-    // Detect orientation change
-    if (Math.abs(window.innerWidth - baseWidth) > 20) {
-      baseWidth = window.innerWidth;
-      baseHeight = window.innerHeight;
+    // Orientation change check
+    if (Math.abs(vv.width - lastWidth) > 10) {
+      lastWidth = vv.width;
+      maxHeight = vv.height;
+    } else {
+      // Dynamic baseline: update maximum observed height (e.g. address bar hiding)
+      if (vv.height > maxHeight) {
+        maxHeight = vv.height;
+      }
     }
 
-    // Keyboard is open if visual viewport has shrunk vertically without rotating
-    const isKeyboard = (baseHeight - vv.height) > 100;
+    // Keyboard is open if visual viewport height shrunk significantly without rotating
+    const isKeyboard = (maxHeight - vv.height) > 100;
 
     if (isKeyboard) {
       const toolbarHeight = toolbar.offsetHeight || 42;
       const navigatorHeight = navigator ? navigator.offsetHeight : 32;
       
-      const toolbarTop = vv.height - toolbarHeight - 16;
+      const vvBottom = vv.offsetTop + vv.height;
+      const toolbarTop = vvBottom - toolbarHeight - 16;
       
-      toolbar.style.position = 'fixed';
+      toolbar.style.position = 'absolute';
       toolbar.style.bottom = 'auto';
       toolbar.style.top = `${toolbarTop}px`;
       
       if (navigator) {
-        navigator.style.position = 'fixed';
+        navigator.style.position = 'absolute';
         navigator.style.bottom = 'auto';
         navigator.style.top = `${toolbarTop - navigatorHeight - 12}px`;
       }
