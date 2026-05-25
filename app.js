@@ -1783,7 +1783,7 @@ function setupVisualViewportTracker() {
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({
       type: 'PANOPTICON_SET_KEYBOARD_MODE',
-      payload: { mode: 'shrink' }
+      payload: { mode: 'shrink', repoName: 'DotJot' }
     }, '*');
   }
 
