@@ -239,7 +239,7 @@ async function init() {
   // Dashboard Listeners
   bindEvents();
 
-
+  setupVisualViewportTracker();
 }
 
 function generateId() {
@@ -705,6 +705,11 @@ function switchView(viewName) {
       bannerTab.classList.remove('expanded');
     }
     renderCanvas();
+    
+    // Proactively align keyboard coordinates on note open
+    if (typeof window.triggerVisualViewportTrackerUpdate === 'function') {
+      window.triggerVisualViewportTrackerUpdate();
+    }
   }
 }
 
@@ -1771,6 +1776,65 @@ function setupAuthListeners() {
       }
     }
   });
+}
+
+function setupVisualViewportTracker() {
+  // Access parent visualViewport if running inside same-origin Panopticon, fallback to local
+  let vv = window.visualViewport;
+  try {
+    if (window.parent && window.parent !== window && window.parent.visualViewport) {
+      vv = window.parent.visualViewport;
+    }
+  } catch (e) {
+    console.warn("Cross-origin parent visualViewport access blocked, falling back to local:", e);
+  }
+
+  if (!vv) return;
+
+  let maxHeight = vv.height;
+  let lastWidth = vv.width;
+
+  const updatePosition = () => {
+    if (state.currentView !== 'canvas') return;
+    
+    const toolbar = els.tools.properties;
+    if (!toolbar) return;
+
+    // Orientation change check
+    if (Math.abs(vv.width - lastWidth) > 10) {
+      lastWidth = vv.width;
+      maxHeight = vv.height;
+    } else {
+      // Dynamic baseline: update maximum observed height
+      if (vv.height > maxHeight) {
+        maxHeight = vv.height;
+      }
+    }
+
+    // Keyboard is open if visual viewport height shrunk significantly without rotating
+    const isKeyboard = (maxHeight - vv.height) > 100;
+
+    if (isKeyboard) {
+      const toolbarHeight = toolbar.offsetHeight || 42;
+      
+      const vvBottom = vv.offsetTop + vv.height;
+      const toolbarTop = vvBottom - toolbarHeight - 16;
+      
+      toolbar.style.position = 'absolute';
+      toolbar.style.bottom = 'auto';
+      toolbar.style.top = `${toolbarTop}px`;
+    } else {
+      toolbar.style.position = '';
+      toolbar.style.bottom = '';
+      toolbar.style.top = '';
+    }
+  };
+
+  vv.addEventListener('resize', updatePosition);
+  vv.addEventListener('scroll', updatePosition);
+
+  // Expose globally so view switches can trigger a check immediately
+  window.triggerVisualViewportTrackerUpdate = updatePosition;
 }
 
 
