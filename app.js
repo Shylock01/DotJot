@@ -1822,12 +1822,21 @@ function setupVisualViewportTracker() {
       }
     }
 
-    // Keyboard is open if visual viewport height shrunk significantly
-    const isKeyboard = (maxHeight - currentHeight) > 100;
+    // Heuristics to detect active editing and keyboard presence
+    const activeEl = document.activeElement;
+    const isInputActive = activeEl && (
+      activeEl.tagName === 'INPUT' || 
+      activeEl.tagName === 'TEXTAREA' || 
+      activeEl.contentEditable === 'true' ||
+      activeEl.classList.contains('canvas-text-block')
+    );
+    const isHeightShrunk = (maxHeight - currentHeight) > 100;
+    const isKeyboard = isHeightShrunk || (isInputActive && (maxHeight - currentHeight) > 50);
 
     if (isKeyboard) {
       const toolbarHeight = toolbar.offsetHeight || 42;
-      const vvBottom = currentOffsetTop + currentHeight;
+      const scrollY = window.pageYOffset || window.scrollY || 0;
+      const vvBottom = scrollY + currentOffsetTop + currentHeight;
       const toolbarTop = vvBottom - toolbarHeight - 16;
       
       toolbar.style.position = 'absolute';
@@ -1850,11 +1859,18 @@ function setupVisualViewportTracker() {
     }
   });
 
-  // 2. Setup local event listeners (for standalone mode)
+  // 2. Setup local event listeners (for standalone mode & standalone scroll events)
   if (vv) {
     vv.addEventListener('resize', () => updatePosition());
     vv.addEventListener('scroll', () => updatePosition());
   }
+
+  // Listen to iframe layout viewport scrolls (e.g. browser forced scrolls)
+  window.addEventListener('scroll', () => updatePosition());
+
+  // Listen to focus changes to update positions immediately
+  window.addEventListener('focusin', () => setTimeout(updatePosition, 50));
+  window.addEventListener('focusout', () => setTimeout(updatePosition, 50));
 
   // Expose globally so view switches can trigger check
   window.triggerVisualViewportTrackerUpdate = () => updatePosition();
