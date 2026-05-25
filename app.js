@@ -1834,6 +1834,7 @@ function setupVisualViewportTracker() {
     const isKeyboard = isHeightShrunk || (isInputActive && (maxHeight - currentHeight) > 50);
 
     if (isKeyboard) {
+      toolbar.classList.add('keyboard-active');
       const toolbarHeight = toolbar.offsetHeight || 42;
       const scrollY = window.pageYOffset || window.scrollY || 0;
       const vvBottom = scrollY + currentOffsetTop + currentHeight;
@@ -1843,6 +1844,7 @@ function setupVisualViewportTracker() {
       toolbar.style.bottom = 'auto';
       toolbar.style.top = `${toolbarTop}px`;
     } else {
+      toolbar.classList.remove('keyboard-active');
       toolbar.style.position = '';
       toolbar.style.bottom = '';
       toolbar.style.top = '';
