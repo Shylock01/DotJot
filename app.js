@@ -1789,35 +1789,37 @@ function setupVisualViewportTracker() {
     console.warn("Cross-origin parent visualViewport access blocked, falling back to local:", e);
   }
 
-  if (!vv) return;
+  // Setup local baseline values
+  let maxHeight = vv ? vv.height : window.innerHeight;
+  let lastWidth = vv ? vv.width : window.innerWidth;
 
-  let maxHeight = vv.height;
-  let lastWidth = vv.width;
-
-  const updatePosition = () => {
+  const updatePosition = (customHeight, customOffsetTop, customWidth) => {
     if (state.currentView !== 'canvas') return;
     
     const toolbar = els.tools.properties;
     if (!toolbar) return;
 
+    // Use parent metrics if passed via postMessage, fallback to local visualViewport/window
+    const currentHeight = customHeight !== undefined ? customHeight : (vv ? vv.height : window.innerHeight);
+    const currentOffsetTop = customOffsetTop !== undefined ? customOffsetTop : (vv ? vv.offsetTop : 0);
+    const currentWidth = customWidth !== undefined ? customWidth : (vv ? vv.width : window.innerWidth);
+
     // Orientation change check
-    if (Math.abs(vv.width - lastWidth) > 10) {
-      lastWidth = vv.width;
-      maxHeight = vv.height;
+    if (Math.abs(currentWidth - lastWidth) > 10) {
+      lastWidth = currentWidth;
+      maxHeight = currentHeight;
     } else {
-      // Dynamic baseline: update maximum observed height
-      if (vv.height > maxHeight) {
-        maxHeight = vv.height;
+      if (currentHeight > maxHeight) {
+        maxHeight = currentHeight;
       }
     }
 
-    // Keyboard is open if visual viewport height shrunk significantly without rotating
-    const isKeyboard = (maxHeight - vv.height) > 100;
+    // Keyboard is open if visual viewport height shrunk significantly
+    const isKeyboard = (maxHeight - currentHeight) > 100;
 
     if (isKeyboard) {
       const toolbarHeight = toolbar.offsetHeight || 42;
-      
-      const vvBottom = vv.offsetTop + vv.height;
+      const vvBottom = currentOffsetTop + currentHeight;
       const toolbarTop = vvBottom - toolbarHeight - 16;
       
       toolbar.style.position = 'absolute';
@@ -1830,11 +1832,24 @@ function setupVisualViewportTracker() {
     }
   };
 
-  vv.addEventListener('resize', updatePosition);
-  vv.addEventListener('scroll', updatePosition);
+  // 1. Listen for postMessage from parent shell (cross-origin safe!)
+  window.addEventListener('message', (event) => {
+    if (!event.data || typeof event.data !== 'object') return;
+    const { type, payload } = event.data;
 
-  // Expose globally so view switches can trigger a check immediately
-  window.triggerVisualViewportTrackerUpdate = updatePosition;
+    if (type === 'PANOPTICON_VIEWPORT_RESIZE' && payload) {
+      updatePosition(payload.height, payload.offsetTop, payload.width);
+    }
+  });
+
+  // 2. Setup local event listeners (for standalone mode)
+  if (vv) {
+    vv.addEventListener('resize', () => updatePosition());
+    vv.addEventListener('scroll', () => updatePosition());
+  }
+
+  // Expose globally so view switches can trigger check
+  window.triggerVisualViewportTrackerUpdate = () => updatePosition();
 }
 
 
