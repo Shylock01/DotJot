@@ -1790,8 +1790,8 @@ function setupVisualViewportTracker() {
   }
 
   // Setup local baseline values
-  let maxHeight = vv ? vv.height : window.innerHeight;
-  let lastWidth = vv ? vv.width : window.innerWidth;
+  let maxHeight = (window.screen && window.screen.height) ? window.screen.height : (vv ? vv.height : window.innerHeight);
+  let lastWidth = (window.screen && window.screen.width) ? window.screen.width : (vv ? vv.width : window.innerWidth);
 
   const updatePosition = (customHeight, customOffsetTop, customWidth) => {
     if (state.currentView !== 'canvas') return;
