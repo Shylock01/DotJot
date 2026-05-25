@@ -1779,6 +1779,14 @@ function setupAuthListeners() {
 }
 
 function setupVisualViewportTracker() {
+  // Opt into Panopticon's 'shrink' keyboard mode so the parent iframe shrinks when keyboard opens
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'PANOPTICON_SET_KEYBOARD_MODE',
+      payload: { mode: 'shrink' }
+    }, '*');
+  }
+
   // Access parent visualViewport if running inside same-origin Panopticon, fallback to local
   let vv = window.visualViewport;
   try {
@@ -1789,9 +1797,9 @@ function setupVisualViewportTracker() {
     console.warn("Cross-origin parent visualViewport access blocked, falling back to local:", e);
   }
 
-  // Setup local baseline values
-  let maxHeight = (window.screen && window.screen.height) ? window.screen.height : (vv ? vv.height : window.innerHeight);
-  let lastWidth = (window.screen && window.screen.width) ? window.screen.width : (vv ? vv.width : window.innerWidth);
+  // Setup local baseline values using window.innerHeight/vv.height for accuracy instead of physical screen height
+  let maxHeight = vv ? vv.height : window.innerHeight;
+  let lastWidth = vv ? vv.width : window.innerWidth;
 
   const updatePosition = (customHeight, customOffsetTop, customWidth) => {
     if (state.currentView !== 'canvas') return;
