@@ -239,7 +239,7 @@ async function init() {
   // Dashboard Listeners
   bindEvents();
 
-  setupVisualViewportTracker();
+
 }
 
 function generateId() {
@@ -1773,74 +1773,7 @@ function setupAuthListeners() {
   });
 }
 
-function setupVisualViewportTracker() {
-  // Access parent visualViewport if running inside a same-origin PWA shell, fallback to local
-  let vv = window.visualViewport;
-  try {
-    if (window.parent && window.parent !== window && window.parent.visualViewport) {
-      vv = window.parent.visualViewport;
-    }
-  } catch (e) {
-    console.warn("Cross-origin parent visualViewport access blocked, falling back to local:", e);
-  }
 
-  if (!vv) return;
-
-  let maxHeight = vv.height;
-  let lastWidth = vv.width;
-
-  const updatePosition = () => {
-    if (state.currentView !== 'canvas') return;
-    
-    const toolbar = els.tools.properties;
-    const navigator = els.canvas.pageNavigator;
-    if (!toolbar) return;
-
-    // Orientation change check
-    if (Math.abs(vv.width - lastWidth) > 10) {
-      lastWidth = vv.width;
-      maxHeight = vv.height;
-    } else {
-      // Dynamic baseline: update maximum observed height (e.g. address bar hiding)
-      if (vv.height > maxHeight) {
-        maxHeight = vv.height;
-      }
-    }
-
-    // Keyboard is open if visual viewport height shrunk significantly without rotating
-    const isKeyboard = (maxHeight - vv.height) > 100;
-
-    if (isKeyboard) {
-      const toolbarHeight = toolbar.offsetHeight || 42;
-      const navigatorHeight = navigator ? navigator.offsetHeight : 32;
-      
-      const vvBottom = vv.offsetTop + vv.height;
-      const toolbarTop = vvBottom - toolbarHeight - 16;
-      
-      toolbar.style.position = 'absolute';
-      toolbar.style.bottom = 'auto';
-      toolbar.style.top = `${toolbarTop}px`;
-      
-      if (navigator) {
-        navigator.style.position = 'absolute';
-        navigator.style.bottom = 'auto';
-        navigator.style.top = `${toolbarTop - navigatorHeight - 12}px`;
-      }
-    } else {
-      toolbar.style.position = '';
-      toolbar.style.bottom = '';
-      toolbar.style.top = '';
-      if (navigator) {
-        navigator.style.position = '';
-        navigator.style.bottom = '';
-        navigator.style.top = '';
-      }
-    }
-  };
-
-  vv.addEventListener('resize', updatePosition);
-  vv.addEventListener('scroll', updatePosition);
-}
 
 // Boot
 if (document.readyState === 'loading') {
