@@ -1787,30 +1787,23 @@ function setupVisualViewportTracker() {
     }, '*');
   }
 
-  // Access parent visualViewport if running inside same-origin Panopticon, fallback to local
-  let vv = window.visualViewport;
-  try {
-    if (window.parent && window.parent !== window && window.parent.visualViewport) {
-      vv = window.parent.visualViewport;
-    }
-  } catch (e) {
-    console.warn("Cross-origin parent visualViewport access blocked, falling back to local:", e);
-  }
+  // Use the child iframe's local visualViewport object exclusively to prevent cross-origin issues
+  // and parent visualViewport coordinate contamination (e.g. parent offsetTop drift)
+  const vv = window.visualViewport;
 
   // Setup local baseline values using window.innerHeight/vv.height for accuracy instead of physical screen height
   let maxHeight = vv ? vv.height : window.innerHeight;
   let lastWidth = vv ? vv.width : window.innerWidth;
 
-  const updatePosition = (customHeight, customOffsetTop, customWidth) => {
+  const updatePosition = () => {
     if (state.currentView !== 'canvas') return;
     
     const toolbar = els.tools.properties;
     if (!toolbar) return;
 
-    // Use parent metrics if passed via postMessage, fallback to local visualViewport/window
-    const currentHeight = customHeight !== undefined ? customHeight : (vv ? vv.height : window.innerHeight);
-    const currentOffsetTop = customOffsetTop !== undefined ? customOffsetTop : (vv ? vv.offsetTop : 0);
-    const currentWidth = customWidth !== undefined ? customWidth : (vv ? vv.width : window.innerWidth);
+    // Read local metrics in the child iframe to support clean standalone or embedded rendering
+    const currentHeight = vv ? vv.height : window.innerHeight;
+    const currentWidth = vv ? vv.width : window.innerWidth;
 
     // Orientation change check
     if (Math.abs(currentWidth - lastWidth) > 10) {
@@ -1835,14 +1828,22 @@ function setupVisualViewportTracker() {
 
     if (isKeyboard) {
       toolbar.classList.add('keyboard-active');
-      const toolbarHeight = toolbar.offsetHeight || 42;
-      const scrollY = window.pageYOffset || window.scrollY || 0;
-      const vvBottom = scrollY + currentOffsetTop + currentHeight;
-      const toolbarTop = vvBottom - toolbarHeight - 16;
-      
-      toolbar.style.position = 'absolute';
-      toolbar.style.bottom = 'auto';
-      toolbar.style.top = `${toolbarTop}px`;
+
+      // Calculate keyboard overlap height relative to layout viewport.
+      // 1. If window.innerHeight is close to currentHeight (<= 100px difference), the layout viewport
+      //    has shrunk (either because of parent iframe resize in Panopticon or interactive-widget=resizes-content).
+      //    In this case, the keyboard does NOT overlap our layout area, so layout overlap offset is 0.
+      // 2. If window.innerHeight is much larger than currentHeight (> 100px difference), the keyboard is overlaying
+      //    our layout viewport (common on iOS standalone or when opened via Panopticon's 'overlay' keyboard mode).
+      //    In this case, the overlap height is window.innerHeight - currentHeight.
+      const keyboardOverlap = (window.innerHeight - currentHeight) > 100 
+        ? (window.innerHeight - currentHeight) 
+        : 0;
+
+      // Use position: fixed to keep the toolbar perfectly immune to window.scrollY auto-scroll offsets and clipping!
+      toolbar.style.position = 'fixed';
+      toolbar.style.bottom = `${keyboardOverlap + 16}px`;
+      toolbar.style.top = 'auto';
     } else {
       toolbar.classList.remove('keyboard-active');
       toolbar.style.position = '';
@@ -1854,10 +1855,11 @@ function setupVisualViewportTracker() {
   // 1. Listen for postMessage from parent shell (cross-origin safe!)
   window.addEventListener('message', (event) => {
     if (!event.data || typeof event.data !== 'object') return;
-    const { type, payload } = event.data;
+    const { type } = event.data;
 
-    if (type === 'PANOPTICON_VIEWPORT_RESIZE' && payload) {
-      updatePosition(payload.height, payload.offsetTop, payload.width);
+    // Run positioning update when the parent broadcasts a viewport resize
+    if (type === 'PANOPTICON_VIEWPORT_RESIZE') {
+      updatePosition();
     }
   });
 
