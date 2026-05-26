@@ -1685,7 +1685,15 @@ function selectObjectAtPoint(e) {
     if (currentSelectedEl) {
       if (objects.length === 1) {
         state.editor.selectedObjectId = null;
-        renderCanvas();
+        // Targeted DOM manipulation to deselect without destroying the element
+        currentSelectedEl.classList.remove('selected');
+        currentSelectedEl.querySelectorAll('.resize-handle').forEach(h => h.remove());
+        
+        // Hide properties panel and adjust visibility
+        if (state.editor.activeTool === 'default') {
+          els.tools.properties.classList.add('hidden');
+          if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.remove('editor-tab-visible');
+        }
         return false;
       }
       const currentIndex = objects.indexOf(currentSelectedEl);

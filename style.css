@@ -504,7 +504,7 @@ p,
   left: 15px;
   right: 15px;
   bottom: 15px;
-  background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
+  background-image: radial-gradient(circle at 0px 0px, var(--dot-color) var(--dot-size), transparent var(--dot-size));
   background-size: var(--dot-spacing) var(--dot-spacing);
   pointer-events: none;
   z-index: 0;
@@ -1096,9 +1096,13 @@ button:active {
 /* Canvas Objects */
 .canvas-object {
   position: absolute;
-  pointer-events: auto;
-  /* allows interaction */
+  pointer-events: none; /* Let clicks pass through the bounding box div */
   z-index: 10;
+}
+
+/* SVG shapes only capture clicks on their stroke/border, allowing clicking/typing inside them */
+.canvas-object svg * {
+  pointer-events: stroke !important;
 }
 
 /* Bounding Box for Selection */
@@ -1169,15 +1173,33 @@ button:active {
   min-height: 20px;
   min-width: 20px;
   overflow: visible;
-  padding: 0;
-  margin: 0;
-  margin-top: -3px; /* Centers text vertically along the rows */
+  padding: 0 6px; /* 6px left/right padding to place caret and text inside the grid box */
+  margin: 0; /* Align bounds exactly to the grid dots */
   white-space: pre-wrap;
   word-wrap: break-word;
   cursor: text;
   pointer-events: auto;
   z-index: 20; /* Keep text above shapes at all times */
 }
+
+/* Ensure all elements within the text block inherit the grid line height and have no margins/paddings that disrupt alignment */
+.canvas-text-block *,
+.canvas-text-block span,
+.canvas-text-block font {
+  margin: 0;
+  padding: 0;
+  line-height: inherit;
+}
+
+/* Map font size tags inside the contentEditable text block to precise sizes that fit perfectly within the 20px grid row */
+.canvas-text-block font[size="1"] { font-size: 0.75rem; }
+.canvas-text-block font[size="2"] { font-size: 0.8rem; }
+.canvas-text-block font[size="3"] { font-size: 0.9rem; }
+.canvas-text-block font[size="4"] { font-size: 1.05rem; }
+.canvas-text-block font[size="5"] { font-size: 1.2rem; }
+.canvas-text-block font[size="6"] { font-size: 1.4rem; }
+.canvas-text-block font[size="7"] { font-size: 1.6rem; }
+
 
 .canvas-text-block:focus {
   /* No bounding box */
