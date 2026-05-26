@@ -1779,16 +1779,19 @@ function setupAuthListeners() {
 }
 
 function setupVisualViewportTracker() {
-  // Opt into Panopticon's 'shrink' keyboard mode so the parent iframe shrinks when keyboard opens
+  // Opt into Panopticon's 'overlay' keyboard mode (dynamic reversion so it doesn't try to shrink shell layout)
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({
       type: 'PANOPTICON_SET_KEYBOARD_MODE',
-      payload: { mode: 'shrink', repoName: 'DotJot' }
+      payload: { mode: 'overlay', repoName: 'DotJot' }
     }, '*');
   }
 
-  // Use the child iframe's local visualViewport object exclusively to prevent cross-origin issues
-  // and parent visualViewport coordinate contamination (e.g. parent offsetTop drift)
+  // Enable overlaysContent mode inside the Virtual Keyboard API for seamless overlay behavior (disables auto-panning!)
+  if (navigator.virtualKeyboard) {
+    navigator.virtualKeyboard.overlaysContent = true;
+  }
+
   const vv = window.visualViewport;
 
   // Track parent visual viewport height received via postMessage to bypass cross-origin iframe limitations
@@ -1827,26 +1830,24 @@ function setupVisualViewportTracker() {
       activeEl.contentEditable === 'true' ||
       activeEl.classList.contains('canvas-text-block')
     );
-    const isHeightShrunk = (maxHeight - currentHeight) > 100;
-    const isKeyboard = isHeightShrunk || (isInputActive && (maxHeight - currentHeight) > 50);
+
+    // Calculate keyboard overlap height dynamically
+    let keyboardHeight = 0;
+    if (navigator.virtualKeyboard && navigator.virtualKeyboard.boundingRect.height > 0) {
+      keyboardHeight = navigator.virtualKeyboard.boundingRect.height;
+    } else {
+      // Robust fallback calculation using visualViewport height difference
+      keyboardHeight = Math.max(0, maxHeight - currentHeight);
+    }
+
+    const isKeyboard = keyboardHeight > 50 || (isInputActive && keyboardHeight > 20);
 
     if (isKeyboard) {
       toolbar.classList.add('keyboard-active');
 
-      // Calculate keyboard overlap height relative to layout viewport.
-      // 1. If window.innerHeight is close to currentHeight (<= 100px difference), the layout viewport
-      //    has shrunk (either because of parent iframe resize in Panopticon or interactive-widget=resizes-content).
-      //    In this case, the keyboard does NOT overlap our layout area, so layout overlap offset is 0.
-      // 2. If window.innerHeight is much larger than currentHeight (> 100px difference), the keyboard is overlaying
-      //    our layout viewport (common on iOS standalone or when opened via Panopticon's 'overlay' keyboard mode).
-      //    In this case, the overlap height is window.innerHeight - currentHeight.
-      const keyboardOverlap = (window.innerHeight - currentHeight) > 100 
-        ? (window.innerHeight - currentHeight) 
-        : 0;
-
       // Use position: fixed to keep the toolbar perfectly immune to window.scrollY auto-scroll offsets and clipping!
       toolbar.style.position = 'fixed';
-      toolbar.style.bottom = `${keyboardOverlap + 16}px`;
+      toolbar.style.bottom = `${keyboardHeight + 16}px`;
       toolbar.style.top = 'auto';
     } else {
       toolbar.classList.remove('keyboard-active');
@@ -1874,6 +1875,11 @@ function setupVisualViewportTracker() {
   if (vv) {
     vv.addEventListener('resize', () => updatePosition());
     vv.addEventListener('scroll', () => updatePosition());
+  }
+
+  // 3. Listen to VirtualKeyboard geometry change events if supported
+  if (navigator.virtualKeyboard) {
+    navigator.virtualKeyboard.addEventListener('geometrychange', () => updatePosition());
   }
 
   // Listen to iframe layout viewport scrolls (e.g. browser forced scrolls)
