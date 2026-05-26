@@ -1794,8 +1794,9 @@ function setupVisualViewportTracker() {
 
   const vv = window.visualViewport;
 
-  // Track parent visual viewport height received via postMessage to bypass cross-origin iframe limitations
+  // Track parent visual viewport height and offsetTop received via postMessage to bypass cross-origin iframe limitations
   let externalViewportHeight = null;
+  let externalViewportOffsetTop = 0;
 
   // Setup local baseline values using window.innerHeight/vv.height for accuracy instead of physical screen height
   let maxHeight = vv ? vv.height : window.innerHeight;
@@ -1811,6 +1812,7 @@ function setupVisualViewportTracker() {
     // Prioritize the broadcasted parent height if running embedded in Panopticon, falling back to local visualViewport/window
     const currentHeight = externalViewportHeight !== null ? externalViewportHeight : (vv ? vv.height : window.innerHeight);
     const currentWidth = vv ? vv.width : window.innerWidth;
+    const currentOffsetTop = externalViewportHeight !== null ? externalViewportOffsetTop : (vv ? vv.offsetTop : 0);
 
     // Orientation change check
     if (Math.abs(currentWidth - lastWidth) > 10) {
@@ -1846,8 +1848,9 @@ function setupVisualViewportTracker() {
       toolbar.classList.add('keyboard-active');
 
       // Use position: fixed to keep the toolbar perfectly immune to window.scrollY auto-scroll offsets and clipping!
+      // Subtract currentOffsetTop to mathematically cancel out any automatic browser visual viewport panning.
       toolbar.style.position = 'fixed';
-      toolbar.style.bottom = `${keyboardHeight + 16}px`;
+      toolbar.style.bottom = `${keyboardHeight + 16 - currentOffsetTop}px`;
       toolbar.style.top = 'auto';
     } else {
       toolbar.classList.remove('keyboard-active');
@@ -1866,6 +1869,9 @@ function setupVisualViewportTracker() {
     if (type === 'PANOPTICON_VIEWPORT_RESIZE' && payload) {
       if (typeof payload.height === 'number') {
         externalViewportHeight = payload.height;
+      }
+      if (typeof payload.offsetTop === 'number') {
+        externalViewportOffsetTop = payload.offsetTop;
       }
       updatePosition();
     }

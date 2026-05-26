@@ -800,7 +800,7 @@ button:active {
 }
 
 .page-navigator.editor-tab-visible {
-  bottom: 100px; /* Positioned tightly above properties-toolbar */
+  bottom: var(--global-padding); /* Underneath the Editor Tab */
 }
 
 #page-indicator {
@@ -915,7 +915,7 @@ button:active {
 
 .properties-toolbar {
   position: absolute;
-  bottom: 24px; /* Floating! Rises up higher in front of page navigator */
+  bottom: 96px; /* Floating above the page navigator */
   left: 50%;
   transform: translate(-50%, 0);
   background-color: var(--bg-main);
@@ -1371,12 +1371,12 @@ button:active {
   }
 
   .page-navigator.editor-tab-visible {
-    bottom: 74px; /* Positioned tightly above properties-toolbar on mobile */
+    bottom: 16px; /* Underneath the Editor Tab on mobile */
   }
 
   /* Properties Toolbar */
   .properties-toolbar {
-    bottom: 16px; /* Floating tab on mobile too! */
+    bottom: 74px; /* Floating above the page navigator on mobile */
     padding: 4px 8px; /* Ultra-tight padding */
     gap: 4px;          /* Minimum gap */
     border-radius: 12px;
