@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DotJot",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A simple note taking app utilizing the dot grid layout.",
   "permissions": [
     "storage"

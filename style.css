@@ -500,10 +500,10 @@ p,
 .note-page::before {
   content: '';
   position: absolute;
-  top: 25px;
-  left: 5px;
-  right: 5px;
-  bottom: 5px;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  bottom: 15px;
   background-image: radial-gradient(var(--dot-color) var(--dot-size), transparent var(--dot-size));
   background-size: var(--dot-spacing) var(--dot-spacing);
   pointer-events: none;
@@ -1163,9 +1163,10 @@ button:active {
   background: transparent;
   outline: none;
   font-family: var(--font-body);
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: var(--text-dark);
   line-height: 20px; /* EXACTLY matches DOT_SPACING to keep wrapped lines on the grid */
+  min-height: 20px;
   min-width: 20px;
   overflow: visible;
   padding: 0;

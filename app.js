@@ -486,9 +486,9 @@ function bindEvents() {
   
   let currentSizeIndex = 1;
   const sizes = [
-    { size: '1', label: '0.8rem', name: 'small' },
-    { size: '3', label: '1.1rem', name: 'regular' },
-    { size: '5', label: '1.5rem', name: 'large' }
+    { size: '1', label: '0.75rem', name: 'small' },
+    { size: '3', label: '0.9rem', name: 'regular' },
+    { size: '5', label: '1.2rem', name: 'large' }
   ];
 
   let currentAlignIndex = 0;
