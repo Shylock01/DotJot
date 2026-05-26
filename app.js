@@ -1791,6 +1791,9 @@ function setupVisualViewportTracker() {
   // and parent visualViewport coordinate contamination (e.g. parent offsetTop drift)
   const vv = window.visualViewport;
 
+  // Track parent visual viewport height received via postMessage to bypass cross-origin iframe limitations
+  let externalViewportHeight = null;
+
   // Setup local baseline values using window.innerHeight/vv.height for accuracy instead of physical screen height
   let maxHeight = vv ? vv.height : window.innerHeight;
   let lastWidth = vv ? vv.width : window.innerWidth;
@@ -1802,7 +1805,8 @@ function setupVisualViewportTracker() {
     if (!toolbar) return;
 
     // Read local metrics in the child iframe to support clean standalone or embedded rendering
-    const currentHeight = vv ? vv.height : window.innerHeight;
+    // Prioritize the broadcasted parent height if running embedded in Panopticon, falling back to local visualViewport/window
+    const currentHeight = externalViewportHeight !== null ? externalViewportHeight : (vv ? vv.height : window.innerHeight);
     const currentWidth = vv ? vv.width : window.innerWidth;
 
     // Orientation change check
@@ -1855,10 +1859,13 @@ function setupVisualViewportTracker() {
   // 1. Listen for postMessage from parent shell (cross-origin safe!)
   window.addEventListener('message', (event) => {
     if (!event.data || typeof event.data !== 'object') return;
-    const { type } = event.data;
+    const { type, payload } = event.data;
 
     // Run positioning update when the parent broadcasts a viewport resize
-    if (type === 'PANOPTICON_VIEWPORT_RESIZE') {
+    if (type === 'PANOPTICON_VIEWPORT_RESIZE' && payload) {
+      if (typeof payload.height === 'number') {
+        externalViewportHeight = payload.height;
+      }
       updatePosition();
     }
   });
