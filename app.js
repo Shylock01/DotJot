@@ -1393,19 +1393,16 @@ function createDomFromObject(obj) {
     el.style.top = obj.y + 'px';
     el.style.width = obj.width + 'px';
     el.style.height = obj.height + 'px';
-    el.style.pointerEvents = 'none'; // Disable clicks inside empty shape container
     
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
     svg.style.overflow = 'visible';
-    svg.style.pointerEvents = 'none'; // Disable pointer events on SVG wrapper
     
     const shape = document.createElementNS('http://www.w3.org/2000/svg', obj.type === 'path' ? 'path' : obj.type);
     shape.setAttribute('stroke', obj.color);
     shape.setAttribute('stroke-width', obj.strokeWidth);
-    shape.setAttribute('fill', 'none'); // Change to none so empty center is click-through
-    shape.setAttribute('pointer-events', 'stroke'); // Captures clicks only on the border outline
+    shape.setAttribute('fill', 'transparent');
     if (obj.strokeStyle === 'dashed') shape.setAttribute('stroke-dasharray', '5,5');
     
     if (obj.type === 'rect') {
@@ -1686,6 +1683,11 @@ function selectObjectAtPoint(e) {
     let nextSelectId = null;
     
     if (currentSelectedEl) {
+      if (objects.length === 1) {
+        state.editor.selectedObjectId = null;
+        renderCanvas();
+        return false;
+      }
       const currentIndex = objects.indexOf(currentSelectedEl);
       const nextIndex = (currentIndex + 1) % objects.length;
       nextSelectId = objects[nextIndex].dataset.id;
