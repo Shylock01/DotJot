@@ -840,7 +840,7 @@ button:active {
   left: 50%;
   transform: translateX(-50%);
   width: 53px;
-  height: 264px;
+  height: 88px;
   background-color: var(--accent-secondary);
   border-radius: 26.5px;
   box-shadow: var(--elev-3);
@@ -1098,6 +1098,7 @@ button:active {
   position: absolute;
   pointer-events: auto;
   /* allows interaction */
+  z-index: 10;
 }
 
 /* Bounding Box for Selection */
@@ -1114,6 +1115,7 @@ button:active {
   border: 1px solid white;
   border-radius: 50%;
   display: none;
+  pointer-events: auto !important;
 }
 
 .canvas-object.selected .resize-handle {
@@ -1155,10 +1157,12 @@ button:active {
   overflow: visible;
   padding: 0;
   margin: 0;
+  margin-top: -3px; /* Centers text vertically along the rows */
   white-space: pre-wrap;
   word-wrap: break-word;
   cursor: text;
   pointer-events: auto;
+  z-index: 20; /* Keep text above shapes at all times */
 }
 
 .canvas-text-block:focus {
@@ -1340,7 +1344,7 @@ button:active {
   .tool-menu {
     bottom: 18px; /* half of 36px wrapper */
     width: 41px;
-    height: 216px;
+    height: 68px;
     border-radius: 20.5px;
   }
 
@@ -1650,4 +1654,9 @@ input:checked + .slider:before {
 
 .slider.round:before {
   border-radius: 50%;
+}
+
+/* Disable text block interaction when active tool is not default */
+.canvas-view:not(.tool-default) .canvas-text-block {
+  pointer-events: none !important;
 }

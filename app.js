@@ -384,10 +384,12 @@ function bindEvents() {
     els.tools.drawColorPicker.addEventListener('input', (e) => state.editor.color = e.target.value);
   }
 
+  let activeColorPickerTarget = null;
   const colorPopover = document.getElementById('color-popover');
   const colorGrid = colorPopover?.querySelector('.color-grid');
   const textColorBtn = document.getElementById('text-color-btn');
   const drawColorBtn = document.getElementById('draw-color-btn');
+  const rectColorBtn = document.getElementById('rect-color-btn');
   const colors = [
     '#1A1A1A', '#8C8C8C', '#FFFFFF', '#FF3B30', '#FF9500', 
     '#FFCC00', '#4CD964', '#5AC8FA', '#007AFF', '#5856D6'
@@ -407,9 +409,26 @@ function bindEvents() {
         if (textColorBtn) textColorBtn.querySelector('.color-indicator').style.backgroundColor = color;
         if (drawColorBtn) drawColorBtn.querySelector('.color-indicator').style.backgroundColor = color;
         
-        if (document.activeElement?.classList.contains('canvas-text-block')) {
+        const rectColorIndicator = document.getElementById('rect-color-indicator');
+        if (rectColorIndicator) rectColorIndicator.style.backgroundColor = color;
+        
+        if (activeColorPickerTarget === 'text' && document.activeElement?.classList.contains('canvas-text-block')) {
           document.execCommand('foreColor', false, color);
           document.activeElement.style.color = color;
+        }
+        
+        if (activeColorPickerTarget === 'rect') {
+          // If a rectangle object is selected, update its color
+          const note = state.notes[state.activeNoteId];
+          if (note && state.editor.selectedObjectId) {
+            const page = note.pages[state.editor.activePageIndex];
+            const obj = page ? page.objects.find(o => o.id === state.editor.selectedObjectId) : null;
+            if (obj && obj.type === 'rect') {
+              obj.color = color;
+              renderCanvas();
+              saveCurrentNote();
+            }
+          }
         }
         colorPopover.classList.add('hidden');
       });
@@ -421,8 +440,27 @@ function bindEvents() {
     if (colorPopover) colorPopover.classList.toggle('hidden');
   };
 
-  if (textColorBtn) textColorBtn.addEventListener('click', toggleColorPopover);
-  if (drawColorBtn) drawColorBtn.addEventListener('click', toggleColorPopover);
+  if (textColorBtn) {
+    textColorBtn.addEventListener('mousedown', e => e.preventDefault());
+    textColorBtn.addEventListener('click', () => {
+      activeColorPickerTarget = 'text';
+      toggleColorPopover();
+    });
+  }
+  if (drawColorBtn) {
+    drawColorBtn.addEventListener('mousedown', e => e.preventDefault());
+    drawColorBtn.addEventListener('click', () => {
+      activeColorPickerTarget = 'draw';
+      toggleColorPopover();
+    });
+  }
+  if (rectColorBtn) {
+    rectColorBtn.addEventListener('mousedown', e => e.preventDefault());
+    rectColorBtn.addEventListener('click', () => {
+      activeColorPickerTarget = 'rect';
+      toggleColorPopover();
+    });
+  }
 
   // Close popover when clicking outside
   document.addEventListener('mousedown', (e) => {
@@ -506,10 +544,21 @@ function bindEvents() {
 
   els.views.canvas.addEventListener('focusin', (e) => {
     if (e.target.classList.contains('canvas-text-block')) {
+      if (state.editor.selectedObjectId !== null) {
+        const prevSelected = document.querySelector(`.canvas-object[data-id="${state.editor.selectedObjectId}"]`);
+        if (prevSelected) {
+          prevSelected.classList.remove('selected');
+          prevSelected.querySelectorAll('.resize-handle').forEach(h => h.remove());
+        }
+        state.editor.selectedObjectId = null;
+      }
+
       els.tools.properties.classList.remove('hidden');
       const drawProps = document.getElementById('prop-layout-draw');
       const textProps = document.getElementById('prop-layout-text');
+      const rectProps = document.getElementById('prop-layout-rect');
       if (drawProps) drawProps.classList.add('hidden');
+      if (rectProps) rectProps.classList.add('hidden');
       if (textProps) textProps.classList.remove('hidden');
       if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.add('editor-tab-visible');
     }
@@ -687,6 +736,54 @@ function bindEvents() {
       isPanning = false;
     }
   };
+
+  // Rectangle Tool Properties Bindings
+  const snapBtn = document.getElementById('rect-snap-btn');
+  if (snapBtn) {
+    snapBtn.addEventListener('mousedown', e => e.preventDefault());
+    snapBtn.addEventListener('click', (e) => {
+      state.editor.isSnapEnabled = !state.editor.isSnapEnabled;
+      snapBtn.classList.toggle('active', state.editor.isSnapEnabled);
+    });
+  }
+
+  const widthSlider = document.getElementById('rect-stroke-width');
+  if (widthSlider) {
+    const handleWidthChange = (e) => {
+      const width = parseInt(e.target.value, 10);
+      state.editor.strokeWidth = width;
+      
+      const note = state.notes[state.activeNoteId];
+      if (note && state.editor.selectedObjectId) {
+        const page = note.pages[state.editor.activePageIndex];
+        const obj = page ? page.objects.find(o => o.id === state.editor.selectedObjectId) : null;
+        if (obj && obj.type === 'rect') {
+          obj.strokeWidth = width;
+          renderCanvas();
+          saveCurrentNote();
+        }
+      }
+    };
+    widthSlider.addEventListener('input', handleWidthChange);
+    widthSlider.addEventListener('change', handleWidthChange);
+  }
+
+  const rectDeleteBtn = document.getElementById('rect-delete-btn');
+  if (rectDeleteBtn) {
+    rectDeleteBtn.addEventListener('mousedown', e => e.preventDefault());
+    rectDeleteBtn.addEventListener('click', (e) => {
+      const note = state.notes[state.activeNoteId];
+      if (note && state.editor.selectedObjectId) {
+        const page = note.pages[state.editor.activePageIndex];
+        if (page) {
+          page.objects = page.objects.filter(o => o.id !== state.editor.selectedObjectId);
+          state.editor.selectedObjectId = null;
+          renderCanvas();
+          saveCurrentNote();
+        }
+      }
+    });
+  }
 
   window.addEventListener('pointerup', cleanPointer);
   window.addEventListener('pointercancel', cleanPointer);
@@ -1138,20 +1235,57 @@ function renderCanvas() {
   const note = state.notes[state.activeNoteId];
   if (!note) return;
 
-  // Manage properties toolbar visibility: auto-hide when typing (if activeTool is default)
-  if (state.editor.activeTool !== 'default') {
+  // Manage properties toolbar visibility: show appropriate layout based on active tool or selected object
+  const page = note.pages[state.editor.activePageIndex];
+  const selectedObj = page ? page.objects.find(o => o.id === state.editor.selectedObjectId) : null;
+
+  const drawProps = document.getElementById('prop-layout-draw');
+  const textProps = document.getElementById('prop-layout-text');
+  const rectProps = document.getElementById('prop-layout-rect');
+
+  let showRect = (state.editor.activeTool === 'rect' || (selectedObj && selectedObj.type === 'rect'));
+  let showText = (state.editor.activeTool === 'default' && document.activeElement?.classList.contains('canvas-text-block'));
+
+  if (showRect) {
     els.tools.properties.classList.remove('hidden');
-    const drawProps = document.getElementById('prop-layout-draw');
-    const textProps = document.getElementById('prop-layout-text');
-    if (drawProps) drawProps.classList.remove('hidden');
+    if (rectProps) rectProps.classList.remove('hidden');
+    if (drawProps) drawProps.classList.add('hidden');
     if (textProps) textProps.classList.add('hidden');
     if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.add('editor-tab-visible');
-  } else {
-    // If we are in default mode, keep it hidden UNLESS a text block is actively focused
-    if (document.activeElement?.classList.contains('canvas-text-block') === false) {
-      els.tools.properties.classList.add('hidden');
-      if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.remove('editor-tab-visible');
+
+    // Sync input controls in properties panel
+    const snapBtn = document.getElementById('rect-snap-btn');
+    const widthSlider = document.getElementById('rect-stroke-width');
+    const colorIndicator = document.getElementById('rect-color-indicator');
+    const deleteBtn = document.getElementById('rect-delete-btn');
+    const deleteDivider = rectProps ? rectProps.querySelector('.rect-delete-divider') : null;
+
+    if (snapBtn) {
+      snapBtn.classList.toggle('active', state.editor.isSnapEnabled);
     }
+    if (widthSlider) {
+      widthSlider.value = selectedObj ? selectedObj.strokeWidth : state.editor.strokeWidth;
+    }
+    if (colorIndicator) {
+      colorIndicator.style.backgroundColor = selectedObj ? selectedObj.color : state.editor.color;
+    }
+
+    const hasSelectedRect = !!(selectedObj && selectedObj.type === 'rect');
+    if (deleteBtn) {
+      deleteBtn.style.display = hasSelectedRect ? 'inline-flex' : 'none';
+    }
+    if (deleteDivider) {
+      deleteDivider.style.display = hasSelectedRect ? 'block' : 'none';
+    }
+  } else if (showText) {
+    els.tools.properties.classList.remove('hidden');
+    if (rectProps) rectProps.classList.add('hidden');
+    if (drawProps) drawProps.classList.add('hidden');
+    if (textProps) textProps.classList.remove('hidden');
+    if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.add('editor-tab-visible');
+  } else {
+    els.tools.properties.classList.add('hidden');
+    if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.remove('editor-tab-visible');
   }
 
   els.canvas.pagesTrack.innerHTML = '';
@@ -1197,6 +1331,10 @@ function renderCanvas() {
 
     // Handle tapping/clicking for text blocks to avoid mousedown native blur on laptops
     pageEl.addEventListener('click', (e) => {
+      if (preventCanvasClick) {
+        preventCanvasClick = false;
+        return;
+      }
       if (state.editor.activeTool === 'default') {
         setActivePage(idx, pageEl);
         handleCanvasClick(e);
@@ -1255,16 +1393,19 @@ function createDomFromObject(obj) {
     el.style.top = obj.y + 'px';
     el.style.width = obj.width + 'px';
     el.style.height = obj.height + 'px';
+    el.style.pointerEvents = 'none'; // Disable clicks inside empty shape container
     
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
     svg.style.overflow = 'visible';
+    svg.style.pointerEvents = 'none'; // Disable pointer events on SVG wrapper
     
     const shape = document.createElementNS('http://www.w3.org/2000/svg', obj.type === 'path' ? 'path' : obj.type);
     shape.setAttribute('stroke', obj.color);
     shape.setAttribute('stroke-width', obj.strokeWidth);
-    shape.setAttribute('fill', 'transparent');
+    shape.setAttribute('fill', 'none'); // Change to none so empty center is click-through
+    shape.setAttribute('pointer-events', 'stroke'); // Captures clicks only on the border outline
     if (obj.strokeStyle === 'dashed') shape.setAttribute('stroke-dasharray', '5,5');
     
     if (obj.type === 'rect') {
@@ -1344,13 +1485,19 @@ function addPage() {
 // === TOOL LOGIC ===
 function toggleToolMenu() {
   const isHidden = els.tools.menu.classList.contains('hidden');
-  if (isHidden) {
-    els.tools.menu.classList.remove('hidden');
-  } else {
-    selectTool('default');
+  const isToolActive = state.editor.activeTool !== 'default';
+  
+  if (isToolActive || !isHidden) {
+    state.editor.activeTool = 'default';
     state.editor.selectedObjectId = null;
     els.tools.menu.classList.add('hidden');
+    els.tools.btns.forEach(b => b.classList.toggle('active', false));
+    if (els.views.canvas) {
+      els.views.canvas.classList.add('tool-default');
+    }
     renderCanvas();
+  } else {
+    els.tools.menu.classList.remove('hidden');
   }
 }
 
@@ -1454,7 +1601,7 @@ function handleCanvasClick(e) {
   const isResizeHandle = e.target.classList.contains('resize-handle');
   if (isResizeHandle) return;
 
-  const targetObj = e.target.closest('.canvas-object');
+  const targetObj = e.target.closest('.canvas-text-block');
   if (targetObj && state.editor.activeTool === 'default') {
     return;
   }
@@ -1509,7 +1656,121 @@ function handleCanvasClick(e) {
   saveCurrentNote();
 }
 
+let preventCanvasClick = false;
+let isResizing = false;
+let activeResizeHandle = null;
+let startWidth = 0;
+let startHeight = 0;
+let startRectX = 0;
+let startRectY = 0;
+
+function selectObjectAtPoint(e) {
+  if (state.currentView !== 'canvas') return false;
+
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  
+  // Find all canvas objects under the tap coordinates, ordered from front to back
+  const elements = document.elementsFromPoint(clientX, clientY);
+  const objects = elements
+    .map(el => el.closest('.canvas-object'))
+    .filter((el, idx, self) => el !== null && self.indexOf(el) === idx);
+    
+  if (objects.length > 0) {
+    // If we clicked inside the active text editor tool, let it handle its own clicks
+    const isInsideActiveEditor = e.target.closest('.canvas-text-block:focus, .properties-toolbar, .color-popover, button, input');
+    if (isInsideActiveEditor) return false;
+
+    // Cycle through intersecting objects
+    const currentSelectedEl = objects.find(el => el.dataset.id === state.editor.selectedObjectId);
+    let nextSelectId = null;
+    
+    if (currentSelectedEl) {
+      const currentIndex = objects.indexOf(currentSelectedEl);
+      const nextIndex = (currentIndex + 1) % objects.length;
+      nextSelectId = objects[nextIndex].dataset.id;
+    } else {
+      const focusedTextBlock = objects.find(el => el.classList.contains('canvas-text-block') && el === document.activeElement);
+      if (focusedTextBlock) {
+        const currentIndex = objects.indexOf(focusedTextBlock);
+        const nextIndex = (currentIndex + 1) % objects.length;
+        nextSelectId = objects[nextIndex].dataset.id;
+      } else {
+        nextSelectId = objects[0].dataset.id;
+      }
+    }
+    
+    state.editor.selectedObjectId = nextSelectId;
+    
+    // If the next selected object is a text block, focus it
+    const note = state.notes[state.activeNoteId];
+    const page = note ? note.pages[state.editor.activePageIndex] : null;
+    const selectedObj = page ? page.objects.find(o => o.id === nextSelectId) : null;
+    
+    if (selectedObj && selectedObj.type === 'text') {
+      state.editor.selectedObjectId = null;
+      renderCanvas();
+      
+      setTimeout(() => {
+        const el = state.editor.activePageEl?.querySelector(`.canvas-text-block[data-id="${nextSelectId}"]`);
+        if (el) el.focus();
+      }, 50);
+    } else {
+      if (document.activeElement?.classList.contains('canvas-text-block')) {
+        document.activeElement.blur();
+      }
+      renderCanvas();
+    }
+    return true;
+  } else {
+    // Tapped blank canvas - deselect if not clicking properties toolbar or tools menu
+    const isInteractiveUI = e.target.closest('.properties-toolbar, .color-popover, .page-navigator, .editor-sidebar-wrapper, .fab-cluster, button, input, a');
+    if (!isInteractiveUI) {
+      if (state.editor.selectedObjectId !== null) {
+        const prevSelected = document.querySelector(`.canvas-object[data-id="${state.editor.selectedObjectId}"]`);
+        if (prevSelected) {
+          prevSelected.classList.remove('selected');
+          prevSelected.querySelectorAll('.resize-handle').forEach(h => h.remove());
+        }
+        state.editor.selectedObjectId = null;
+        if (state.editor.activeTool === 'default') {
+          els.tools.properties.classList.add('hidden');
+          if (els.canvas.pageNavigator) els.canvas.pageNavigator.classList.remove('editor-tab-visible');
+        } else {
+          renderCanvas();
+        }
+      }
+    }
+    return false;
+  }
+}
+
 function handlePointerDown(e) {
+  if (state.currentView !== 'canvas') return;
+
+  // 1. Check if clicking on a resize handle
+  const resizeHandle = e.target.closest('.resize-handle');
+  if (resizeHandle) {
+    e.stopPropagation();
+    const note = state.notes[state.activeNoteId];
+    const page = note.pages[state.editor.activePageIndex];
+    const obj = page.objects.find(o => o.id === state.editor.selectedObjectId);
+    if (obj) {
+      isResizing = true;
+      activeResizeHandle = resizeHandle.classList.contains('nw') ? 'nw' :
+                           resizeHandle.classList.contains('ne') ? 'ne' :
+                           resizeHandle.classList.contains('sw') ? 'sw' : 'se';
+      const coords = getCoords(e);
+      state.editor.startX = coords.x;
+      state.editor.startY = coords.y;
+      startWidth = (obj.width === 'auto' || typeof obj.width === 'string') ? 100 : obj.width;
+      startHeight = (obj.height === 'auto' || typeof obj.height === 'string') ? 40 : obj.height;
+      startRectX = obj.x;
+      startRectY = obj.y;
+    }
+    return;
+  }
+
   // If clicking on an existing object and using pointer tool
   if (state.editor.activeTool === 'pointer') {
     const targetId = e.target.closest('.canvas-object')?.dataset.id;
@@ -1519,7 +1780,12 @@ function handlePointerDown(e) {
   }
 
   // If in default mode, we handle typing via click, not pointerdown
-  if (state.editor.activeTool === 'default') return;
+  if (state.editor.activeTool === 'default') {
+    const coords = getCoords(e);
+    state.editor.startX = coords.x;
+    state.editor.startY = coords.y;
+    return;
+  }
 
   const coords = getCoords(e);
   let startX = coords.x;
@@ -1579,6 +1845,111 @@ function handlePointerDown(e) {
 }
 
 function handlePointerMove(e) {
+  if (isResizing) {
+    e.preventDefault();
+    const note = state.notes[state.activeNoteId];
+    const page = note.pages[state.editor.activePageIndex];
+    const obj = page.objects.find(o => o.id === state.editor.selectedObjectId);
+    if (!obj) return;
+
+    const coords = getCoords(e);
+    const currentX = coords.x;
+    const currentY = coords.y;
+    const dx = currentX - state.editor.startX;
+    const dy = currentY - state.editor.startY;
+
+    let newX = obj.x;
+    let newY = obj.y;
+    let newWidth = obj.width;
+    let newHeight = obj.height;
+
+    if (activeResizeHandle === 'nw') {
+      newX = startRectX + dx;
+      newY = startRectY + dy;
+      newWidth = startWidth - dx;
+      newHeight = startHeight - dy;
+    } else if (activeResizeHandle === 'ne') {
+      newY = startRectY + dy;
+      newWidth = startWidth + dx;
+      newHeight = startHeight - dy;
+    } else if (activeResizeHandle === 'sw') {
+      newX = startRectX + dx;
+      newWidth = startWidth - dx;
+      newHeight = startHeight + dy;
+    } else if (activeResizeHandle === 'se') {
+      newWidth = startWidth + dx;
+      newHeight = startHeight + dy;
+    }
+
+    // Apply grid snapping if active
+    if (state.editor.isSnapEnabled) {
+      const snapLeft = snapX(newX);
+      const snapTop = snapY(newY);
+      const snapRight = snapX(newX + newWidth);
+      const snapBottom = snapY(newY + newHeight);
+
+      const minSize = 20;
+      
+      if (activeResizeHandle === 'nw') {
+        obj.x = snapLeft;
+        obj.y = snapTop;
+        obj.width = Math.max(minSize, snapRight - snapLeft);
+        obj.height = Math.max(minSize, snapBottom - snapTop);
+      } else if (activeResizeHandle === 'ne') {
+        obj.y = snapTop;
+        obj.width = Math.max(minSize, snapRight - obj.x);
+        obj.height = Math.max(minSize, snapBottom - snapTop);
+      } else if (activeResizeHandle === 'sw') {
+        obj.x = snapLeft;
+        obj.width = Math.max(minSize, snapRight - snapLeft);
+        obj.height = Math.max(minSize, snapBottom - obj.y);
+      } else if (activeResizeHandle === 'se') {
+        obj.width = Math.max(minSize, snapRight - obj.x);
+        obj.height = Math.max(minSize, snapBottom - obj.y);
+      }
+    } else {
+      const minSize = 5;
+      
+      if (activeResizeHandle === 'nw') {
+        if (newWidth >= minSize) obj.x = newX;
+        if (newHeight >= minSize) obj.y = newY;
+        obj.width = Math.max(minSize, newWidth);
+        obj.height = Math.max(minSize, newHeight);
+      } else if (activeResizeHandle === 'ne') {
+        if (newHeight >= minSize) obj.y = newY;
+        obj.width = Math.max(minSize, newWidth);
+        obj.height = Math.max(minSize, newHeight);
+      } else if (activeResizeHandle === 'sw') {
+        if (newWidth >= minSize) obj.x = newX;
+        obj.width = Math.max(minSize, newWidth);
+        obj.height = Math.max(minSize, newHeight);
+      } else if (activeResizeHandle === 'se') {
+        obj.width = Math.max(minSize, newWidth);
+        obj.height = Math.max(minSize, newHeight);
+      }
+    }
+
+    // Update DOM element directly for high performance
+    const el = state.editor.activePageEl?.querySelector(`[data-id="${obj.id}"]`);
+    if (el) {
+      el.style.left = obj.x + 'px';
+      el.style.top = obj.y + 'px';
+      el.style.width = obj.width + 'px';
+      el.style.height = obj.height + 'px';
+      
+      const shape = el.querySelector('svg')?.firstElementChild;
+      if (shape && obj.type === 'circle') {
+        shape.setAttribute('cx', obj.width / 2);
+        shape.setAttribute('cy', obj.height / 2);
+        shape.setAttribute('r', Math.min(obj.width, obj.height) / 2);
+      } else if (shape && obj.type === 'line') {
+        shape.setAttribute('x2', obj.width);
+        shape.setAttribute('y2', obj.height);
+      }
+    }
+    return;
+  }
+
   if (!state.editor.isDrawing || !currentObj || !currentEl) return;
   e.preventDefault();
 
@@ -1588,10 +1959,8 @@ function handlePointerMove(e) {
 
   if (state.editor.activeTool === 'draw') {
     currentObj.points += ` L ${currentX} ${currentY}`;
-    // Re-render just this path
     const path = currentEl.querySelector('path');
     if (path) path.setAttribute('d', currentObj.points);
-    // update bounding box roughly
     currentObj.width = Math.max(currentObj.width, currentX - currentObj.x);
     currentObj.height = Math.max(currentObj.height, currentY - currentObj.y);
     currentEl.style.width = currentObj.width + 'px';
@@ -1623,7 +1992,6 @@ function handlePointerMove(e) {
       shape.setAttribute('cy', currentObj.height / 2);
       shape.setAttribute('r', Math.min(currentObj.width, currentObj.height) / 2);
   } else if (currentObj.type === 'line') {
-      // Logic for line direction based on drag direction
       if (width < 0 && height < 0) {
         shape.setAttribute('x1', currentObj.width); shape.setAttribute('y1', currentObj.height);
         shape.setAttribute('x2', 0); shape.setAttribute('y2', 0);
@@ -1641,22 +2009,52 @@ function handlePointerMove(e) {
 }
 
 function handlePointerUp(e) {
+  if (isResizing) {
+    isResizing = false;
+    activeResizeHandle = null;
+    saveCurrentNote();
+    renderCanvas();
+    return;
+  }
+
+  // Check if it was a simple tap/click to select/cycle an object
+  const coords = getCoords(e);
+  const movement = Math.hypot(coords.x - state.editor.startX, coords.y - state.editor.startY);
+  
+  if (movement < 5) {
+    const selectTriggered = selectObjectAtPoint(e);
+    if (selectTriggered) {
+      preventCanvasClick = true;
+      if (state.editor.isDrawing && currentObj) {
+        const note = state.notes[state.activeNoteId];
+        const page = note.pages[state.editor.activePageIndex];
+        page.objects = page.objects.filter(o => o.id !== currentObj.id);
+        if (currentEl && currentEl.parentNode) currentEl.parentNode.removeChild(currentEl);
+        state.editor.isDrawing = false;
+        currentObj = null;
+        currentEl = null;
+      }
+      return;
+    }
+  }
+
   if (state.editor.isDrawing) {
     state.editor.isDrawing = false;
     if (currentObj) {
       if (currentObj.width === 0 && currentObj.height === 0 && currentObj.type !== 'text') {
-        // Remove empty object
         const note = state.notes[state.activeNoteId];
         const page = note.pages[state.editor.activePageIndex];
         page.objects.pop();
         if (currentEl && currentEl.parentNode) currentEl.parentNode.removeChild(currentEl);
       } else {
+        // Automatically select the placed shape
+        state.editor.selectedObjectId = currentObj.id;
         saveCurrentNote();
       }
     }
     currentObj = null;
     currentEl = null;
-    renderCanvas(); // normalize
+    renderCanvas();
   }
 }
 
