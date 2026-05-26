@@ -632,8 +632,17 @@ function bindEvents() {
       return;
     }
 
-    // Single-finger touch is now handled natively (scrolling, text focus, etc.)
-    // We only intercept if it's a specific tool drawing.
+    // Single-finger touch panning
+    if (activePointers.size === 1) {
+      const isInteractive = e.target.closest('.canvas-text-block, .page-close-btn, .page-navigator, .properties-toolbar, .color-popover, .editor-sidebar-wrapper, .fab-cluster, button, a');
+      if (!isInteractive) {
+        isPanning = true;
+        startPanClientX = e.clientX;
+        startPanClientY = e.clientY;
+        startPanX = state.editor.panX || 0;
+        startPanY = state.editor.panY || 0;
+      }
+    }
   });
 
   window.addEventListener('pointermove', (e) => {
@@ -657,9 +666,15 @@ function bindEvents() {
       return;
     }
 
-    // Single-finger panning removed in favor of native scrolling
+    // Single-finger panning
     if (isPanning && activePointers.size === 1) {
-      // no-op for now, let native scroll handle it
+      const zoom = state.editor.zoom || 1.0;
+      const dx = e.clientX - startPanClientX;
+      const dy = e.clientY - startPanClientY;
+      
+      state.editor.panX = startPanX + dx / zoom;
+      state.editor.panY = startPanY + dy / zoom;
+      applyZoomAndPan();
     }
   });
 

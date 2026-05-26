@@ -915,7 +915,7 @@ button:active {
 
 .properties-toolbar {
   position: absolute;
-  bottom: 96px; /* Floating above the page navigator */
+  bottom: 80px; /* Floating above the page navigator */
   left: 50%;
   transform: translate(-50%, 0);
   background-color: var(--bg-main);
@@ -1376,7 +1376,7 @@ button:active {
 
   /* Properties Toolbar */
   .properties-toolbar {
-    bottom: 74px; /* Floating above the page navigator on mobile */
+    bottom: 60px; /* Floating above the page navigator on mobile */
     padding: 4px 8px; /* Ultra-tight padding */
     gap: 4px;          /* Minimum gap */
     border-radius: 12px;
